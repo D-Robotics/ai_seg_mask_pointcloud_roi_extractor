@@ -1,0 +1,145 @@
+ai_seg_mask_pointcloud_roi_extractor_node:
+  ros__parameters:
+    debug:
+      description: "调试模式"
+      description_en: "Debug mode"
+      type: "bool"
+      default_value: "false"
+      range: []
+      unit: ""
+
+    depth_image_topic:
+      description: "深度图话题名称"
+      description_en: "Depth image topic name"
+      type: "string"
+      default_value: "/StereoNetNode/stereonet_depth"
+      range: []
+      unit: ""
+
+    detect_info_topic:
+      description: "分割检测信息话题名称"
+      description_en: "Segmentation detect topic name"
+      type: "string"
+      default_value: "/hobot_dnn_detection"
+      range: []
+      unit: ""
+
+    class_info_topic:
+      description: "类别信息话题名称"
+      description_en: "Class info topic name"
+      type: "string"
+      default_value: "/hobot_dnn_detection_info"
+      range: []
+      unit: ""
+
+    camera_info_topic:
+      description: "相机信息话题名称"
+      description_en: "Camera info topic name"
+      type: "string"
+      default_value: "/StereoNetNode/stereonet_depth/camera_info"
+      range: []
+      unit: ""
+
+    color_image_topic:
+      description: "彩色图话题名称"
+      description_en: "Color image topic name"
+      type: "string"
+      default_value: "/StereoNetNode/origin_left_image"
+      range: []
+      unit: ""
+
+    filtered_mask_topic:
+      description: "过滤后的mask话题名称"
+      description_en: "Filtered mask image topic name"
+      type: "string"
+      default_value: "/filtered_depth_mask"
+      range: []
+      unit: ""
+
+    filtered_depth_topic:
+      description: "过滤后的深度图mask话题名称"
+      description_en: "Filtered depth mask image topic name"
+      type: "string"
+      default_value: "/filtered_depth_img"
+      range: []
+      unit: ""
+
+    filtered_cloud_topic:
+      description: "过滤后的点云话题名称"
+      description_en: "Filtered point cloud topic name"
+      type: "string"
+      default_value: "/filtered_depth_cloud"
+      range: []
+      unit: ""
+
+    confidence_threshold_file_path:
+      description: "类别的置信度文件路径"
+      description_en: "File path of confidence threshold for each class"
+      type: "string"
+      default_value: "model_classes_config.yaml"
+      range: []
+      unit: ""
+
+    queue_size:
+      description: "消息同步队列大小"
+      description_en: "Queue size for message synchronization"
+      type: "int"
+      default_value: "10"
+      range: []
+      unit: ""
+
+    allow_timestamp_deviation:
+      description: "允许的时间戳偏差"
+      description_en: "Allowable timestamp deviation for synchronization"
+      type: "double"
+      default_value: "0.5"
+      range: []
+      unit: "sec"
+
+    min_depth:
+      description: "最小深度值"
+      description_en: "Minimum depth value for filtering"
+      type: "double"
+      default_value: "0.0"
+      range: []
+      unit: "m"
+
+    max_depth:
+      description: "最大深度值"
+      description_en: "Maximum depth value for filtering"
+      type: "double"
+      default_value: "5.0"
+      range: []
+      unit: "m"
+
+    dilate_iter_num:
+      description: "膨胀迭代次数"
+      description_en: "Number of iterations for dilation"
+      type: "int"
+      default_value: "1"
+      range: []
+      unit: ""
+
+    camera_width:
+      description: "相机输出图片宽度"
+      description_en: "Camera output image width"
+      type: "int"
+      default_value: "640"
+      range: []
+      unit: ""
+
+    camera_height:
+      description: "相机输出图片"
+      description_en: "Camera output image height"
+      type: "int"
+      default_value: "352"
+      range: []
+      unit: ""
+
+    log_level:
+      description: "日志级别"
+      description_en: "Log level"
+      type: "string"
+      default_value: "info"
+      range: ["debug", "info", "warn", "error"]
+      unit: ""
