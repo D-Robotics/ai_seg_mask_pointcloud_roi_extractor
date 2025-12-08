@@ -122,6 +122,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         size_t camera_width{640};                      ///< Camera width
         size_t camera_height{352};                     ///< Camera height
         std::string log_level{"info"};                 ///< Log level
+        bool use_extractor{true};                      ///< Whether to extract the region of interest, true := extract, false := filter
 
         /**
         * @brief Constructor for depth mask extractor parameters
@@ -143,6 +144,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         * @param camera_width Camera width
         * @param camera_height Camera height
         * @param log_level Log level
+        * @param use_extractor Whether to extract the region of interest, true := extract, false := filter
         */
         AISegMaskPointCloudROIExtractorPara(
             bool debug,
@@ -162,7 +164,8 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             int dilate_iter_num,
             size_t camera_width,
             size_t camera_height,
-            std::string log_level
+            std::string log_level,
+            bool use_extractor
         ) : 
         debug(debug),
         depth_image_topic(depth_image_topic),
@@ -181,7 +184,8 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         dilate_iter_num(dilate_iter_num),
         camera_width(camera_width),
         camera_height(camera_height),
-        log_level(log_level) {}
+        log_level(log_level),
+        use_extractor(use_extractor) {}
 
         /**
         * @brief Default constructor for depth mask extractor parameters
@@ -213,6 +217,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             RCLCPP_INFO(logger, "  camera_width: %ld", this->camera_width);
             RCLCPP_INFO(logger, "  camera_height: %ld", this->camera_height);
             RCLCPP_INFO(logger, "  log_level: %s", this->log_level.c_str());
+            RCLCPP_INFO(logger, "  use_extractor: %s", this->use_extractor ? "true" : "false");
         }   
 
         /**
@@ -239,6 +244,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             node->declare_parameter("camera_width", 640);
             node->declare_parameter("camera_height", 352);
             node->declare_parameter("log_level", "info");
+            node->declare_parameter("use_extractor", false);
         }
 
         /**
@@ -265,6 +271,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             node->get_parameter("camera_width", this->camera_width);
             node->get_parameter("camera_height", this->camera_height);
             node->get_parameter("log_level", this->log_level);
+            node->get_parameter("use_extractor", this->use_extractor);
         }
     };
 
@@ -437,7 +444,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             * @param mask_img Output cv::Mat to store the mask image
             * @return True if parsing is successful, false otherwise
             */
-            bool parserDetetctInfo(const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
+            bool parserDetectInfo(const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
                             cv::Mat &mask_img);
 
             /**

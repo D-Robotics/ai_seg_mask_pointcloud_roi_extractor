@@ -1,8 +1,12 @@
 # AI Segmentation Mask PointCloud ROI Extractor
 
-## 1. Project Introduction
+## 1. Project Overview
 
-This is a ROS2 Humble-based package that extracts or filters Depth Image Regions of Interest (ROI) from depth images using AI segmentation masks. The package implements the following core features:
+AI Segmentation Mask PointCloud ROI Extractor is a ROS2 Humble-based package specifically designed to extract or filter Regions of Interest (ROI) from depth images. It utilizes AI segmentation mask technology to accurately separate target objects from point clouds, providing high-quality point cloud data for subsequent robot perception and decision-making.
+
+## 2. Core Features
+
+The package implements the following core features:
 
 - Standard ROS2 node implementation
 - Subscribes to depth images and AI detection information with precise timestamp synchronization
@@ -22,6 +26,7 @@ ai_seg_mask_pointcloud_roi_extractor/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.cpp  # Main component implementation
 │   ├── callback.cpp                              # Callback function implementation
 │   ├── publish.cpp                               # Publishing function implementation
+│   ├── read_param.cpp                            # Parameter reading implementation
 │   ├── set_dynamic_para.cpp                      # Dynamic parameter handling
 │   └── time_stamp.cpp                            # Timestamp conversion utilities
 ├── launch/
@@ -30,13 +35,11 @@ ai_seg_mask_pointcloud_roi_extractor/
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # Parameter configuration description
-│   ├── model_classes_config.yaml                 # Class confidence threshold configuration
-│   └── params.yaml                               # Automatically generated parameter configuration
+│   └── model_classes_config.yaml                 # Class confidence threshold configuration
 ├── package.xml                         # Package definition file
 ├── CMakeLists.txt                      # CMake build configuration
-├── README.md                           # English documentation
-└── README_detailed.md                  # Detailed Chinese documentation
-└── README_detailed_en.md               # Detailed English documentation
+├── README.md                           # Chinese documentation
+└── README_en.md                        # English documentation
 ```
 
 ## 3. Dependencies
@@ -84,12 +87,16 @@ bash ./robot_dev_config/build.sh -p X5 -s ai_seg_mask_pointcloud_roi_extractor
 ### 5.1 Run Using Launch File
 
 ```bash
+# Source the workspace
+source install/setup.bash
+
 # Run with default parameters
 ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extractor.py
 
 # Run with custom parameters
 ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extractor.py debug:=true log_level:=debug
 ```
+**NOTE**: Before launching, you need to start the stereo camera and yolov8-seg nodes to ensure that depth images and detection information can be properly subscribed.
 
 ## 6. Parameter Configuration
 
@@ -102,9 +109,11 @@ The project uses YAML files for parameter configuration. The main configuration 
 
 ### 6.2 Parameter Description
 
+### 6.2 Core Parameters
+
 | Parameter Name | Type | Default Value | Description | Unit |
 |---------------|------|---------------|-------------|------|
-| debug | bool | false | Enable debug mode | - |
+| debug | bool | false | Enable debug mode to output more detailed log information | - |
 | depth_image_topic | string | "/StereoNetNode/stereonet_depth" | Depth image subscription topic | - |
 | detect_info_topic | string | "/hobot_dnn_detection" | AI segmentation detection information subscription topic | - |
 | class_info_topic | string | "/hobot_dnn_detection_info" | Class information subscription topic | - |
@@ -113,17 +122,22 @@ The project uses YAML files for parameter configuration. The main configuration 
 | filtered_mask_topic | string | "/filtered_depth_mask" | Filtered mask publishing topic | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | Filtered depth image publishing topic | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | Filtered point cloud publishing topic | - |
-| confidence_threshold_file_path | string | "model_classes_config.yaml" | Class confidence threshold file path | - |
-| queue_size | int | 10 | Message synchronization queue size | - |
-| allow_timestamp_deviation | double | 0.5 | Allowed timestamp deviation | seconds |
-| min_depth | double | 0.0 | Minimum depth filter value | meters |
-| max_depth | double | 5.0 | Maximum depth filter value | meters |
-| dilate_iter_num | int | 1 | Mask dilation iteration count | - |
-| camera_width | int | 640 | Camera image width | pixels |
-| camera_height | int | 352 | Camera image height | pixels |
-| log_level | string | "info" | Log level | - |
 
-### 6.3 Dynamic Parameters
+### 6.3 Configuration Parameters
+
+| Parameter Name | Type | Default Value | Description | Unit |
+|---------------|------|---------------|-------------|------|
+| confidence_threshold_file_path | string | "model_classes_config.yaml" | Class confidence threshold file path | - |
+| queue_size | int | 10 | Message synchronization queue size, affecting real-time performance and stability | - |
+| allow_timestamp_deviation | double | 0.5 | Allowed timestamp deviation, messages exceeding this value will be discarded | seconds |
+| min_depth | double | 0.0 | Minimum depth filter value, points below this value will be filtered | meters |
+| max_depth | double | 5.0 | Maximum depth filter value, points above this value will be filtered | meters |
+| dilate_iter_num | int | 1 | Mask dilation iteration count, affecting the size of ROI area | - |
+| camera_width | int | 640 | Camera image width, must match actual input image | pixels |
+| camera_height | int | 352 | Camera image height, must match actual input image | pixels |
+| log_level | string | "info" | Log level, available options: debug, info, warn, error, critical | - |
+
+### 6.4 Dynamic Parameters
 
 Parameters that support runtime dynamic adjustment:
 
@@ -160,27 +174,31 @@ ros2 param set /depth_mask_extractor_node debug true
 
 ## 8. Workflow
 
-1. **Initialization Phase**
-   - Create ROS2 node and parameter objects
-   - Declare and retrieve configuration parameters
-   - Initialize publishers and subscribers
-   - Parse YAML configuration files
+### 8.1 Initialization Phase
+- Create ROS2 node and parameter objects
+- Declare and retrieve configuration parameters
+- Initialize publishers and subscribers
+- Parse class confidence thresholds from YAML configuration files through read_param.cpp
 
-2. **Data Receiving Phase**
-   - Subscribe to camera information and class information
-   - Use message_filters for timestamp synchronization of depth images and detection information
+### 8.2 Data Receiving Phase
+- Subscribe to camera information and class information
+- Use message_filters for timestamp synchronization of depth images and detection information
 
-3. **Data Processing Phase**
-   - Convert ROS messages to OpenCV image format
-   - Parse detection information to generate segmentation masks
-   - Perform dilation processing on masks
-   - Filter depth images based on masks
-   - Convert depth images to point clouds
+### 8.3 Parameter Configuration Parsing
+- Set target detection parameters based on subscribed class information and configuration files
+- Support dynamically adjustable parameter configuration
 
-4. **Result Publishing Phase**
-   - Publish filtered depth images
-   - Publish filtered mask images
-   - Publish filtered point clouds
+### 8.4 Data Processing Phase
+- Convert ROS messages to OpenCV image format
+- Parse detection information to generate segmentation masks
+- Perform dilation processing on masks
+- Filter depth images based on masks
+- Convert depth images to point clouds
+
+### 8.5 Result Publishing Phase
+- Publish filtered depth images
+- Publish filtered mask images
+- Publish filtered point clouds
 
 ## 9. Notes
 

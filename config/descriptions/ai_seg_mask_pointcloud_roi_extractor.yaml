@@ -113,8 +113,8 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       unit: "m"
 
     dilate_iter_num:
-      description: "膨胀迭代次数"
-      description_en: "Number of iterations for dilation"
+      description: "感兴趣区域mask的膨胀迭代次数"
+      description_en: "Number of dilation iterations for the mask of the region of interest"
       type: "int"
       default_value: "1"
       range: []
@@ -129,7 +129,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       unit: ""
 
     camera_height:
-      description: "相机输出图片"
+      description: "相机输出图片高度"
       description_en: "Camera output image height"
       type: "int"
       default_value: "352"
@@ -142,4 +142,12 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       type: "string"
       default_value: "info"
       range: ["debug", "info", "warn", "error"]
+      unit: ""
+  
+    use_extractor:
+      description: "是否进行感兴趣区域提取， true:=感兴趣区域提取, false:=感兴趣区域过滤"
+      description_en: "Whether to perform region of interest extraction, true:= region of interest extraction, false:= region of interest filtering"
+      type: "bool"
+      default_value: "false"
+      range: []
       unit: ""

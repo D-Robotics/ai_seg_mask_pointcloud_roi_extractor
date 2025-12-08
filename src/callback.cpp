@@ -67,7 +67,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         // Parse detection information to generate a valid region mask
         cv::Mat mask_img = cv::Mat::zeros(params_->camera_height, params_->camera_width, CV_8UC1);
-        if (!parserDetetctInfo(detect_info_msg, mask_img)) 
+        if (!parserDetectInfo(detect_info_msg, mask_img)) 
         {
             RCLCPP_ERROR(get_logger(), "Detect info parsing failed !");
             return;
@@ -144,7 +144,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         return true;
     }
 
-    bool AISegMaskPointCloudROIExtractor::parserDetetctInfo(const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
+    bool AISegMaskPointCloudROIExtractor::parserDetectInfo(const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
                                                     cv::Mat &mask_img)
     {
         std::vector<BoxInfo> filtered_all_box_info;
@@ -425,53 +425,67 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
     {
         if (mask.empty() || depth_img.empty()) 
         {
-            RCLCPP_ERROR(get_logger(), "Mask or depth_img is empty !");
+            RCLCPP_ERROR(get_logger(), "Mask or depth_img is empty!");
             return false;
         }
 
         if (mask.size() != depth_img.size()) 
         {
-            RCLCPP_ERROR(get_logger(), "Mask and depth_img size mismatch! mask size: %dx%d, depth_img size: %dx%d",
-                                        mask.cols, mask.rows, 
-                                        depth_img.cols, depth_img.rows);
+            RCLCPP_ERROR(get_logger(), "Mask and depth_img size mismatch! mask: %dx%d, depth: %dx%d",
+                        mask.cols, mask.rows, depth_img.cols, depth_img.rows);
             return false;
         }
 
         if (mask.type() != CV_8UC1) 
         {
-            RCLCPP_ERROR(get_logger(), "Mask must be single-channel CV_8UC1! Current type: %d", mask.type());
+            RCLCPP_ERROR(get_logger(), "Mask must be single-channel CV_8UC1 (type=0)! Current type: %d", mask.type());
             return false;
         }
 
-        int depth_type = depth_img.type();
+        const int depth_type = depth_img.type();
         if (depth_type != CV_32FC1 && depth_type != CV_16UC1) 
         {
-            RCLCPP_ERROR(get_logger(), "Depth_img only support CV_32FC1(5)/CV_16UC1(2) ! Current type: %d", depth_type);
+            RCLCPP_ERROR(get_logger(), "Depth_img only supports CV_32FC1(5)/CV_16UC1(2)! Current type: %d", depth_type);
             return false;
         }
 
-        if (depth_type == CV_32FC1) 
+        try 
         {
-            depth_img.forEach<float>([&](float& depth_pixel, const int* pos) 
+            const uchar* mask_data = mask.data;
+            // Bytes per row (adapted to continuous/discontinuous matrix)
+            const size_t mask_step = mask.step; 
+            const bool use_extractor = params_->use_extractor;
+
+            auto set_depth_zero = [&](auto& depth_pixel, const int* pos) 
             {
-                uchar mask_pixel = mask.at<uchar>(pos[0], pos[1]);
-                if (mask_pixel == 255) 
+                const size_t row = static_cast<size_t>(pos[0]); 
+                const size_t col = static_cast<size_t>(pos[1]); 
+                const uchar mask_pixel = mask_data[row * mask_step + col]; 
+                const bool need_set_zero = use_extractor ? (mask_pixel != 255) : (mask_pixel == 255);
+                if (need_set_zero) 
                 {
-                    depth_pixel = 0.0f;
+                    depth_pixel = 0; 
                 }
-            });
-        }
-        else if (depth_type == CV_16UC1) 
-        {
-            depth_img.forEach<ushort>([&](ushort& depth_pixel, const int* pos) 
+            };
+
+            if (depth_type == CV_32FC1) 
             {
-                uchar mask_pixel = mask.at<uchar>(pos[0], pos[1]);
-                if (mask_pixel == 255) 
-                { 
-                    depth_pixel = 0;
-                }
-            });
+                depth_img.forEach<float>(set_depth_zero);
+            } 
+            else 
+            {
+                depth_img.forEach<ushort>(set_depth_zero);
+            }
         }
+        catch (const cv::Exception& e) 
+        {
+            RCLCPP_ERROR(get_logger(), "Exception in setDepthZeroByMask: %s", e.what());
+            return false;
+        }
+
+        RCLCPP_DEBUG(get_logger(), "setDepthZeroByMask success! Depth type: %s, use_extractor: %s",
+                    (depth_type == CV_32FC1 ? "CV_32FC1" : "CV_16UC1"),
+                    (params_->use_extractor ? "true" : "false"));
         return true;
     }
 

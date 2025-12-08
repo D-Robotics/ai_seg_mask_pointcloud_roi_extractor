@@ -1,8 +1,14 @@
 # AI Segmentation Mask PointCloud ROI Extractor
 
-## 1. 项目介绍
+[English Version](README_en.md)  |  [中文版本](README.md)
 
-这是一个基于ROS2 Humble的功能包，用于基于AI分割掩码从深度图中提取或者过滤深度图感兴趣区域（ROI）。该功能包实现了以下核心功能：
+## 1. 项目概述
+
+AI Segmentation Mask PointCloud ROI Extractor是一个基于ROS2 Humble的功能包，专门用于从深度图中提取或过滤感兴趣区域（ROI）。它利用AI分割掩码技术，能够精确地从深度图或者点云中提取或者过滤出目标对象，为后续的机器人感知和决策提供感兴趣的点云或者深度图信息。
+
+## 2. 核心功能
+
+该功能包实现了以下核心功能：
 
 - 使用标准ROS2节点实现
 - 订阅深度图和AI检测信息，确保时间戳精确对齐
@@ -22,6 +28,7 @@ ai_seg_mask_pointcloud_roi_extractor/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.cpp  # 组件主实现
 │   ├── callback.cpp                              # 回调函数实现
 │   ├── publish.cpp                               # 发布函数实现
+│   ├── read_param.cpp                            # 参数读取实现
 │   ├── set_dynamic_para.cpp                      # 动态参数处理
 │   └── time_stamp.cpp                            # 时间戳转换工具
 ├── launch/
@@ -30,12 +37,11 @@ ai_seg_mask_pointcloud_roi_extractor/
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # 参数配置描述
-│   ├── model_classes_config.yaml                 # 类别置信度阈值配置
-│   └── params.yaml                               # 自动生成的参数配置
+│   └── model_classes_config.yaml                 # 类别置信度阈值配置
 ├── package.xml                         # 包定义文件
 ├── CMakeLists.txt                      # CMake构建文件
-├── README.md                           # 英文文档
-└── README_detailed.md                  # 详细中文文档
+├── README.md                           # 中文文档
+└── README_en.md                        # 英文文档
 ```
 
 ## 3. 依赖项
@@ -83,12 +89,16 @@ bash ./robot_dev_config/build.sh -p X5 -s ai_seg_mask_pointcloud_roi_extractor
 ### 5.1 使用Launch文件运行
 
 ```bash
+# source 工作空间
+source install/setup.bash
+
 # 使用默认参数运行
 ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extractor.py
 
 # 自定义参数运行
 ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extractor.py debug:=true log_level:=debug
 ```
+NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图和检测信息能够被正常订阅。
 
 
 ## 6. 参数配置
@@ -102,9 +112,11 @@ ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extr
 
 ### 6.2 参数说明
 
+### 6.2 核心参数说明
+
 | 参数名称 | 类型 | 默认值 | 描述 | 单位 |
 |---------|------|-------|------|------|
-| debug | bool | false | 是否启用调试模式 | - |
+| debug | bool | false | 是否启用调试模式，启用后会输出更详细的日志信息 | - |
 | depth_image_topic | string | "/StereoNetNode/stereonet_depth" | 深度图订阅话题 | - |
 | detect_info_topic | string | "/hobot_dnn_detection" | AI分割检测信息订阅话题 | - |
 | class_info_topic | string | "/hobot_dnn_detection_info" | 类别信息订阅话题 | - |
@@ -113,17 +125,22 @@ ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extr
 | filtered_mask_topic | string | "/filtered_depth_mask" | 过滤后的掩码发布话题 | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | 过滤后的深度图发布话题 | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | 过滤后的点云发布话题 | - |
-| confidence_threshold_file_path | string | "model_classes_config.yaml" | 类别置信度阈值文件路径 | - |
-| queue_size | int | 10 | 消息同步队列大小 | - |
-| allow_timestamp_deviation | double | 0.5 | 允许的时间戳偏差 | 秒 |
-| min_depth | double | 0.0 | 最小深度过滤值 | 米 |
-| max_depth | double | 5.0 | 最大深度过滤值 | 米 |
-| dilate_iter_num | int | 1 | 掩码膨胀迭代次数 | - |
-| camera_width | int | 640 | 相机图像宽度 | 像素 |
-| camera_height | int | 352 | 相机图像高度 | 像素 |
-| log_level | string | "info" | 日志级别 | - |
 
-### 6.3 动态参数
+### 6.3 配置参数说明
+
+| 参数名称 | 类型 | 默认值 | 描述 | 单位 |
+|---------|------|-------|------|------|
+| confidence_threshold_file_path | string | "model_classes_config.yaml" | 类别置信度阈值文件路径 | - |
+| queue_size | int | 10 | 消息同步队列大小，影响消息处理的实时性和稳定性 | - |
+| allow_timestamp_deviation | double | 0.5 | 允许的时间戳偏差，超过此值的消息会被丢弃 | 秒 |
+| min_depth | double | 0.0 | 最小深度过滤值，小于此值的点会被过滤 | 米 |
+| max_depth | double | 5.0 | 最大深度过滤值，大于此值的点会被过滤 | 米 |
+| dilate_iter_num | int | 1 | 掩码膨胀迭代次数，影响ROI区域的大小 | - |
+| camera_width | int | 640 | 相机图像宽度，必须与实际输入图像一致 | 像素 |
+| camera_height | int | 352 | 相机图像高度，必须与实际输入图像一致 | 像素 |
+| log_level | string | "info" | 日志级别，可选值：debug、info、warn、error、critical | - |
+
+### 6.4 动态参数
 
 支持在运行时动态调整的参数：
 
@@ -160,27 +177,31 @@ ros2 param set /depth_mask_extractor_node debug true
 
 ## 8. 工作流程
 
-1. **初始化阶段**
-   - 创建ROS2节点和参数对象
-   - 声明和获取配置参数
-   - 初始化发布者和订阅者
-   - 解析YAML配置文件
+### 8.1 初始化阶段
+- 创建ROS2节点和参数对象
+- 声明和获取配置参数
+- 初始化发布者和订阅者
+- 通过read_param.cpp解析YAML配置文件中的类别置信度阈值
 
-2. **数据接收阶段**
-   - 订阅相机信息和类别信息
-   - 使用message_filters实现深度图和检测信息的时间同步
+### 8.2 数据接收阶段
+- 订阅相机信息和类别信息
+- 使用message_filters实现深度图和检测信息的时间同步
 
-3. **数据处理阶段**
-   - 将ROS消息转换为OpenCV图像格式
-   - 解析检测信息生成分割掩码
-   - 对掩码进行膨胀处理
-   - 根据掩码过滤深度图
-   - 将深度图转换为点云
+### 8.3 参数配置解析
+- 根据订阅的类别信息和配置文件设置目标检测参数
+- 支持动态调整的参数配置
 
-4. **结果发布阶段**
-   - 发布过滤后的深度图
-   - 发布过滤后的掩码图像
-   - 发布过滤后的点云
+### 8.4 数据处理阶段
+- 将ROS消息转换为OpenCV图像格式
+- 解析检测信息生成分割掩码
+- 对掩码进行膨胀处理
+- 根据掩码过滤深度图
+- 将深度图转换为点云
+
+### 8.5 结果发布阶段
+- 发布过滤后的深度图
+- 发布过滤后的掩码图像
+- 发布过滤后的点云
 
 ## 9. 注意事项
 
