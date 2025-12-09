@@ -321,6 +321,20 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             bool parserYamlParam();
 
             /**
+            * Check if single topics that need to be subscribed to exist
+            * @param topic_list Topic name
+            * @return bool Exist → true, otherwise → false
+            */
+            bool check_single_topic(const std::string &topic_name);
+
+            /**
+            * Check if all topics that need to be subscribed to exist
+            * @param topic_list Topic List Vector
+            * @return bool All Exist → true, otherwise → false
+            */
+            bool check_topic_list(const std::vector<std::string> &topic_list);
+
+            /**
             * @brief Get camera intrinsic parameters
             * @return Shared pointer to camera info, or nullptr if not available
             */
