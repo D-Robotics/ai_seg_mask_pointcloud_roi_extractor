@@ -56,7 +56,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         double time_stamp = headerTimeStampTimeToDoubleSec(depth_msg->header);
 
-                if (last_time_ == -std::numeric_limits<double>::infinity())
+        if (last_time_ == -std::numeric_limits<double>::infinity())
         {
             last_time_ = time_stamp;
         }
@@ -64,8 +64,8 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         {
             if (std::abs(time_stamp - last_time_) > sync_time_delta_)
             {
-                RCLCPP_WARN(get_logger(), "The delay of time synchronization between the depth map and mask exceeds the set threshold, current_time=%f, last_time=%f, delta=%f", 
-                                            time_stamp, last_time_, std::abs(time_stamp - last_time_));
+                RCLCPP_WARN(get_logger(), "The delay of time synchronization between the depth map and mask exceeds the set threshold, current_time=%f(s), last_time=%f(s), delta=%f(s)", 
+                            time_stamp, last_time_, std::abs(time_stamp - last_time_));
             }
             last_time_ = time_stamp;
             last_receive_time_ = depth_time;
