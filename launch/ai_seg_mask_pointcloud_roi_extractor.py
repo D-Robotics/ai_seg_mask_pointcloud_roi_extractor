@@ -32,7 +32,7 @@ sys.path.append(parent_dir)
 sys.path.append(current_dir)
 print(f"parent_dir= {parent_dir}")
 
-from parser_config_params import AutoLaunchArguments
+from seg_mask_parser_config_params import AutoLaunchArguments
 
 def generate_launch_description():
     # declare launch arguments
@@ -76,13 +76,12 @@ def generate_launch_description():
     
     # Load composable nodes
     load_composable_nodes = LoadComposableNodes(
-        condition=IfCondition(launch_container),
         target_container=container_name,
         composable_node_descriptions=[
             ComposableNode(
                 package="ai_seg_mask_pointcloud_roi_extractor",
                 plugin="robot::ai_seg_mask_pointcloud_roi_extractor::AISegMaskPointCloudROIExtractor",
-                name="ai_seg_mask_pointcloud_roi_extractor_node",
+                name="seg_mask",
                 parameters=launch_parameters,
                 extra_arguments=[{"use_intra_process_comms": True}],
             ),
