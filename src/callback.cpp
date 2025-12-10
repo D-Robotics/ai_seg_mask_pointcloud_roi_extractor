@@ -28,11 +28,11 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         std::chrono::high_resolution_clock::time_point start, end;
         start = std::chrono::high_resolution_clock::now();
+        rclcpp::Time now = this->get_clock()->now();
+        rclcpp::Time depth_time(depth_msg->header.stamp);
+        rclcpp::Time detect_time(detect_info_msg->header.stamp);
         if (params_->debug)
         {
-            rclcpp::Time now = this->get_clock()->now();
-            rclcpp::Time depth_time(depth_msg->header.stamp);
-            rclcpp::Time detect_time(detect_info_msg->header.stamp);
 
             rclcpp::Duration depth_delay = now - depth_time;
             rclcpp::Duration detect_info_delay = now - detect_time;
@@ -55,6 +55,22 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         }
 
         double time_stamp = headerTimeStampTimeToDoubleSec(depth_msg->header);
+
+                if (last_time_ == -std::numeric_limits<double>::infinity())
+        {
+            last_time_ = time_stamp;
+        }
+        else
+        {
+            if (std::abs(time_stamp - last_time_) > sync_time_delta_)
+            {
+                RCLCPP_WARN(get_logger(), "The delay of time synchronization between the depth map and mask exceeds the set threshold, current_time=%f, last_time=%f, delta=%f", 
+                                            time_stamp, last_time_, std::abs(time_stamp - last_time_));
+            }
+            last_time_ = time_stamp;
+            last_receive_time_ = depth_time;
+        }
+        
         std::string frame_id = depth_msg->header.frame_id;
 
         // Parse Depth Map

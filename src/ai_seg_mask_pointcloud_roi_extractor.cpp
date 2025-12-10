@@ -131,6 +131,8 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
                                         std::placeholders::_1, 
                                         std::placeholders::_2));
 
+        timeSyncDetect();
+
         RCLCPP_INFO(get_logger(), "Initialize Subscriber End");
 
         return;

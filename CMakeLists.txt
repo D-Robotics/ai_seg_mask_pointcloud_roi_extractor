@@ -40,6 +40,7 @@ add_library(${PROJECT_NAME}_component SHARED
   src/set_dynamic_para.cpp
   src/time_stamp.cpp
   src/read_param.cpp
+  src/time_sync_detect.cpp
 )
 
 # 目标包含目录（仅保留必要路径）

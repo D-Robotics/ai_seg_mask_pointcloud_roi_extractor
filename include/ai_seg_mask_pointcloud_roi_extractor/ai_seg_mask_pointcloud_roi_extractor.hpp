@@ -321,6 +321,16 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             bool parserYamlParam();
 
             /**
+            * @brief Periodically print time synchronization abnormal status information
+            */
+            void timeSyncStatus();
+
+            /**
+            * @brief Time synchronization periodic detection
+            */
+            bool timeSyncDetect();
+
+            /**
             * Check if single topics that need to be subscribed to exist
             * @param topic_list Topic name
             * @return bool Exist → true, otherwise → false
@@ -554,6 +564,11 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             
             int MASK_DOWNSAMPLING_RATIO = 4;
             float DEPTH_SACLAE = 0.001f;
+
+            double last_time_ = -std::numeric_limits<double>::infinity();  ///< Record the time of the previous frame data
+            double sync_time_delta_{0.5}; ///< Time synchronization time interval
+            rclcpp::TimerBase::SharedPtr timeSyncTimer_{nullptr};
+            rclcpp::Time last_receive_time_;
 
     };
 
