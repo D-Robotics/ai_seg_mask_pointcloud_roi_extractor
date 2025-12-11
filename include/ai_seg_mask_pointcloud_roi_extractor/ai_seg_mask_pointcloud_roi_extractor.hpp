@@ -105,6 +105,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         using Ptr = std::shared_ptr<AISegMaskPointCloudROIExtractorPara>;
 
         bool debug{false};                             ///< Debug mode
+        bool topic_check{false};                       ///< Topic check
         std::string  depth_image_topic{""};            ///< Depth image topic name
         std::string  detect_info_topic{""} ;           ///< Segmentation detect topic name
         std::string  class_info_topic{""} ;            ///< Class topic name
@@ -127,6 +128,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         /**
         * @brief Constructor for depth mask extractor parameters
         * @param debug Debug mode
+        * @param topic_check Topic check
         * @param depth_image_topic Depth image topic name
         * @param detect_info_topic Segmentation detect topic name
         * @param class_info_topic Class topic name
@@ -148,6 +150,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         */
         AISegMaskPointCloudROIExtractorPara(
             bool debug,
+            bool topic_check,
             std::string  depth_image_topic,      
             std::string  detect_info_topic,  
             std::string  class_info_topic,  
@@ -168,6 +171,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             bool use_extractor
         ) : 
         debug(debug),
+        topic_check(topic_check),
         depth_image_topic(depth_image_topic),
         detect_info_topic(detect_info_topic),
         class_info_topic(class_info_topic),
@@ -200,6 +204,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         {
             RCLCPP_INFO(logger, "DepthMaskExtractor-Config-Param:");
             RCLCPP_INFO(logger, "  debug: %s", this->debug ? "true" : "false");
+            RCLCPP_INFO(logger, "  topic_check: %s", this->topic_check ? "true" : "false");
             RCLCPP_INFO(logger, "  depth_image_topic: %s", this->depth_image_topic.c_str());
             RCLCPP_INFO(logger, "  detect_info_topic: %s", this->detect_info_topic.c_str());
             RCLCPP_INFO(logger, "  class_info_topic: %s", this->class_info_topic.c_str());
@@ -227,6 +232,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         void declare_parameters(rclcpp::Node* node)
         {
             node->declare_parameter("debug", false);
+            node->declare_parameter("topic_check", false);
             node->declare_parameter("depth_image_topic", "image_raw");
             node->declare_parameter("detect_info_topic", "hobot_dnn_detection");
             node->declare_parameter("class_info_topic", "hobot_dnn_detection_info");
@@ -254,6 +260,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         void get_parameters(rclcpp::Node* node)
         {
             node->get_parameter("debug", this->debug);
+            node->get_parameter("topic_check", this->topic_check);
             node->get_parameter("depth_image_topic", this->depth_image_topic);
             node->get_parameter("detect_info_topic", this->detect_info_topic);
             node->get_parameter("class_info_topic", this->class_info_topic);
@@ -331,18 +338,10 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             bool timeSyncDetect();
 
             /**
-            * Check if single topics that need to be subscribed to exist
-            * @param topic_list Topic name
-            * @return bool Exist → true, otherwise → false
-            */
-            bool check_single_topic(const std::string &topic_name);
-
-            /**
             * Check if all topics that need to be subscribed to exist
-            * @param topic_list Topic List Vector
             * @return bool All Exist → true, otherwise → false
             */
-            bool check_topic_list(const std::vector<std::string> &topic_list);
+            bool checkRequiredTopic();
 
             /**
             * @brief Get camera intrinsic parameters
@@ -531,6 +530,20 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
              * @return True if operation is successful, false otherwise
              */
              bool generateMaskByDepth(const cv::Mat& depth_img, cv::Mat& mask);
+
+            /**
+            * Check if single topics that need to be subscribed to exist
+            * @param topic_list Topic name
+            * @return bool Exist → true, otherwise → false
+            */
+            bool checkSingleTopic(const std::string &topic_name);
+
+            /**
+            * Check if all topics that need to be subscribed to exist
+            * @param topic_list Topic List Vector
+            * @return bool All Exist → true, otherwise → false
+            */
+            bool checkTopicList(const std::vector<std::string> &topic_list);
 
         private:         
             rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_{nullptr};  ///< Camera info subscriber

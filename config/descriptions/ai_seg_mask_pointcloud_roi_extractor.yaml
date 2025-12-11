@@ -1,8 +1,16 @@
-ai_seg_mask_pointcloud_roi_extractor_node:
+seg_mask:
   ros__parameters:
     debug:
       description: "调试模式"
       description_en: "Debug mode"
+      type: "bool"
+      default_value: "false"
+      range: []
+      unit: ""
+
+    topic_check:
+      description: "订阅的话题存在性检测"
+      description_en: "Topic check"
       type: "bool"
       default_value: "false"
       range: []

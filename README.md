@@ -31,6 +31,7 @@ ai_seg_mask_pointcloud_roi_extractor/
 │   ├── read_param.cpp                            # 参数读取实现
 │   ├── set_dynamic_para.cpp                      # 动态参数处理
 │   └── time_stamp.cpp                            # 时间戳转换工具
+|   |___ time_sync_detect.cpp                     # 时间同步话题异常检测
 ├── launch/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.py   # 组件启动文件
 │   └── parser_config_params.py                   # 配置解析器
@@ -117,6 +118,7 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | 参数名称 | 类型 | 默认值 | 描述 | 单位 |
 |---------|------|-------|------|------|
 | debug | bool | false | 是否启用调试模式，启用后会输出更详细的日志信息 | - |
+| topic_check | bool | false | 订阅话题存在性检测 | - |
 | depth_image_topic | string | "/StereoNetNode/stereonet_depth" | 深度图订阅话题 | - |
 | detect_info_topic | string | "/hobot_dnn_detection" | AI分割检测信息订阅话题 | - |
 | class_info_topic | string | "/hobot_dnn_detection_info" | 类别信息订阅话题 | - |
@@ -145,14 +147,18 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 支持在运行时动态调整的参数：
 
 - **debug**：启用/禁用调试模式
+- **topic_check**：订阅话题存在性检测
 - **log_level**：设置日志级别（debug/info/warn/error/critical）
 
 ```bash
 # 动态调整日志级别
-ros2 param set /depth_mask_extractor_node log_level debug
+ros2 param set /seg_mask log_level debug
+
+# 话题检测
+ros2 param set /seg_mask topic_check true
 
 # 动态启用调试模式
-ros2 param set /depth_mask_extractor_node debug true
+ros2 param set /seg_mask debug true
 ```
 
 ## 7. 消息格式
@@ -226,20 +232,20 @@ ros2 param set /depth_mask_extractor_node debug true
 ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extractor.py log_level:=debug
 
 # 动态调整日志级别
-ros2 param set /depth_mask_extractor_node log_level debug
+ros2 param set /seg_mask log_level debug
 ```
 
 ### 11.2 检查参数
 
 ```bash
 # 查看所有参数
-ros2 param list /depth_mask_extractor_node
+ros2 param list /seg_mask
 
 # 查看特定参数值
-ros2 param get /depth_mask_extractor_node debug
+ros2 param get /seg_mask debug
 
 # 设置参数值
-ros2 param set /depth_mask_extractor_node debug true
+ros2 param set /seg_mask debug true
 ```
 
 ## 12. 许可证

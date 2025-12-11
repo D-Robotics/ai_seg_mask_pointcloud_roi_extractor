@@ -23,7 +23,7 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 sys.path.append(current_dir)
 
-NODE_NAME = "ai_seg_mask_pointcloud_roi_extractor_node"
+NODE_NAME = "seg_mask"
 
 class AutoLaunchArguments:
     def __init__(self, descriptions_dir, visual_params_path):

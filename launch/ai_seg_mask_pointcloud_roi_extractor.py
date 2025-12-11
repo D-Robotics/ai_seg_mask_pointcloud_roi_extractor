@@ -47,7 +47,7 @@ def generate_launch_description():
 
     container_name = LaunchConfiguration("container_name")
     launch_container = LaunchConfiguration("launch_container")
-    print(f"container_name= {container_name}, launch_container= {launch_container}")
+    # print(f"container_name= {container_name}, launch_container= {launch_container}")
 
     descriptions_dir = os.path.join(parent_dir, 'config', 'descriptions')
     print(f"descriptions_dir = {descriptions_dir}")

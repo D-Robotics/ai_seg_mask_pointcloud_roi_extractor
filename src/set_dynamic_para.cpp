@@ -94,6 +94,14 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
                 params_->debug = param.as_bool();
                 RCLCPP_INFO(get_logger(), "debug updated to: %s", params_->debug ? "true" : "false");
             }
+            else if (param.get_name() == "topic_check")
+            {
+                RCLCPP_INFO(get_logger(), "Start check topic");
+                if (!checkRequiredTopic())
+                {
+                    RCLCPP_ERROR(get_logger(), "Topic detection exception !");
+                }
+            }
             else
             {
                 

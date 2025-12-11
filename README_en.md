@@ -29,6 +29,7 @@ ai_seg_mask_pointcloud_roi_extractor/
 │   ├── read_param.cpp                            # Parameter reading implementation
 │   ├── set_dynamic_para.cpp                      # Dynamic parameter handling
 │   └── time_stamp.cpp                            # Timestamp conversion utilities
+|   |___ time_sync_detect.cpp                     # Time Synchronization Topic Anomaly Detection
 ├── launch/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.py   # Component launch file
 │   └── parser_config_params.py                   # Configuration parser
@@ -114,6 +115,7 @@ The project uses YAML files for parameter configuration. The main configuration 
 | Parameter Name | Type | Default Value | Description | Unit |
 |---------------|------|---------------|-------------|------|
 | debug | bool | false | Enable debug mode to output more detailed log information | - |
+| topic_check | bool | false | Subscribe topic existence detection | - |
 | depth_image_topic | string | "/StereoNetNode/stereonet_depth" | Depth image subscription topic | - |
 | detect_info_topic | string | "/hobot_dnn_detection" | AI segmentation detection information subscription topic | - |
 | class_info_topic | string | "/hobot_dnn_detection_info" | Class information subscription topic | - |
@@ -146,10 +148,13 @@ Parameters that support runtime dynamic adjustment:
 
 ```bash
 # Dynamically adjust log level
-ros2 param set /depth_mask_extractor_node log_level debug
+ros2 param set /seg_mask log_level debug
+
+# Topic ckeck
+ros2 param set /seg_mask topic_check true
 
 # Dynamically enable debug mode
-ros2 param set /depth_mask_extractor_node debug true
+ros2 param set /seg_mask debug true
 ```
 
 ## 7. Message Format
@@ -223,20 +228,20 @@ ros2 param set /depth_mask_extractor_node debug true
 ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extractor.py log_level:=debug
 
 # Dynamically adjust log level
-ros2 param set /depth_mask_extractor_node log_level debug
+ros2 param set /seg_mask log_level debug
 ```
 
 ### 11.2 Check Parameters
 
 ```bash
 # View all parameters
-ros2 param list /depth_mask_extractor_node
+ros2 param list /seg_mask
 
 # View specific parameter values
-ros2 param get /depth_mask_extractor_node debug
+ros2 param get /seg_mask debug
 
 # Set parameter values
-ros2 param set /depth_mask_extractor_node debug true
+ros2 param set/seg_mask debug true
 ```
 
 ## 12. License

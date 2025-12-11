@@ -33,7 +33,6 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         rclcpp::Time detect_time(detect_info_msg->header.stamp);
         if (params_->debug)
         {
-
             rclcpp::Duration depth_delay = now - depth_time;
             rclcpp::Duration detect_info_delay = now - detect_time;
             rclcpp::Duration msg_time_diff = depth_time - detect_time;
@@ -54,8 +53,8 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
                                         std::abs(msg_time_diff.seconds()));
         }
 
+        std::string frame_id = depth_msg->header.frame_id;
         double time_stamp = headerTimeStampTimeToDoubleSec(depth_msg->header);
-
         if (last_time_ == -std::numeric_limits<double>::infinity())
         {
             last_time_ = time_stamp;
@@ -70,8 +69,6 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
             last_time_ = time_stamp;
             last_receive_time_ = depth_time;
         }
-        
-        std::string frame_id = depth_msg->header.frame_id;
 
         // Parse Depth Map
         cv::Mat depth_img = cv::Mat::zeros(params_->camera_height, params_->camera_width, CV_16UC1);

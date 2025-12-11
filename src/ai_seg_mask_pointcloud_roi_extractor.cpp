@@ -69,8 +69,13 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         if (!dynamicParaCallback())
         {
-            RCLCPP_INFO(get_logger(), "Dynamic para callback failed !");
+            RCLCPP_ERROR(get_logger(), "Dynamic para callback failed !");
             return false;
+        }
+
+        if (!checkRequiredTopic())
+        {
+            RCLCPP_ERROR(get_logger(), "Topic detection exception !");
         }
 
         initializePublisher();
@@ -85,20 +90,6 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
     void AISegMaskPointCloudROIExtractor::initializeSubscriber()
     {
         RCLCPP_INFO(get_logger(), "Initialize Subscriber Start");
-
-        std::vector<std::string> required_topics = {params_->camera_info_topic,
-                                                    params_->class_info_topic,
-                                                    params_->depth_image_topic,
-                                                    params_->detect_info_topic};
-        if (check_topic_list(required_topics))
-        {
-            RCLCPP_INFO(get_logger(), "🔍 Detection completed: All topics exist");
-        } 
-        else 
-        {
-            RCLCPP_ERROR(get_logger(), "🔍 Detection completed: Some topics are missing, please check the previous log prompts");
-            return;
-        }
 
         // Create camera info subscriber
         camera_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
@@ -159,7 +150,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
     }
 
 
-    bool AISegMaskPointCloudROIExtractor::check_single_topic(const std::string &topic_name) 
+    bool AISegMaskPointCloudROIExtractor::checkSingleTopic(const std::string &topic_name) 
     {
         if (topic_name.empty()) 
         {
@@ -178,14 +169,14 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         } 
         else 
         {
-            RCLCPP_ERROR(get_logger(), "❌ Topic [%s] - does not exist, Viewing method : [ros2 topic info %s --once]", 
+            RCLCPP_WARN(get_logger(), "❌ Topic [%s] - does not exist, Check Method : [ros2 topic info %s --once]", 
                                             topic_name.c_str(), topic_name.c_str());
             return false;
         }
     }
 
 
-    bool AISegMaskPointCloudROIExtractor::check_topic_list(const std::vector<std::string> &topic_list) 
+    bool AISegMaskPointCloudROIExtractor::checkTopicList(const std::vector<std::string> &topic_list) 
     {
         if (topic_list.empty()) 
         {
@@ -199,12 +190,36 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         for (const auto &topic : topic_list) 
         {
-            if (!check_single_topic(topic)) 
+            if (!checkSingleTopic(topic)) 
             {
                 all_exists = false; 
             }
         }
         return all_exists;
+    }
+
+    bool AISegMaskPointCloudROIExtractor::checkRequiredTopic() 
+    {
+        std::vector<std::string> required_topics = {params_->camera_info_topic,
+                                                    params_->class_info_topic,
+                                                    params_->depth_image_topic,
+                                                    params_->detect_info_topic};
+
+        int loop_count = 3;
+        do {
+            loop_count--;
+            if (checkTopicList(required_topics))
+            {
+                RCLCPP_INFO(get_logger(), "Detection completed: All topics exist");
+                return true;
+            } 
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        } while (loop_count > 0);
+
+        RCLCPP_WARN(get_logger(), "Three consecutive topic detection failures, Check Method : [ros2 topic info topic-name --once]");
+
+        return false;
     }
 
 }  // namespace robot::ai_seg_mask_pointcloud_roi_extractor
