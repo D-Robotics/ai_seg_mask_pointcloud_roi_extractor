@@ -41,6 +41,7 @@ ai_seg_mask_pointcloud_roi_extractor/
 ├── CMakeLists.txt                      # CMake build configuration
 ├── README.md                           # Chinese documentation
 └── README_en.md                        # English documentation
+└── image                               # Picture Folder
 ```
 
 ## 3. Dependencies
@@ -244,10 +245,18 @@ ros2 param get /seg_mask debug
 ros2 param set/seg_mask debug true
 ```
 
-## 12. License
+## 12. Resource Occupancy
+RDK-X5 CPU ： 
+
+![CPU占用](./image/README/cpu.jpg)
+
+RDK-X5 FPS ：
+![FPS](./image/README/fps.jpg)
+
+## 13. License
 
 This project is open source under the Apache License 2.0.
 
-## 13. Contact Information
+## 14. Contact Information
 
 For questions or suggestions, please contact the project maintainers.
