@@ -25,6 +25,10 @@ from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import LoadComposableNodes, ComposableNodeContainer
 from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode, ParameterFile
+from launch.actions import (
+    IncludeLaunchDescription, ExecuteProcess, DeclareLaunchArgument, 
+    GroupAction, TimerAction, LogInfo
+)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -72,7 +76,9 @@ def generate_launch_description():
             "--ros-args",
             "--log-level",
             log_level,
-        ])
+        ],
+        respawn=False,
+        respawn_delay=2.0)
     
     # Load composable nodes
     load_composable_nodes = LoadComposableNodes(
@@ -80,12 +86,20 @@ def generate_launch_description():
         composable_node_descriptions=[
             ComposableNode(
                 package="ai_seg_mask_pointcloud_roi_extractor",
-                plugin="robot::ai_seg_mask_pointcloud_roi_extractor::AISegMaskPointCloudROIExtractor",
+                plugin="seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor",
                 name="seg_mask",
                 parameters=launch_parameters,
                 extra_arguments=[{"use_intra_process_comms": True}],
             ),
         ],
+    )
+
+    delayed_load = TimerAction(
+        period=1.0,
+        actions=[
+            LogInfo(msg=PythonExpression(['"Loading composable nodes into container " + "', container_name, '"'])),
+            load_composable_nodes
+        ]
     )
 
     # launch description
@@ -94,6 +108,6 @@ def generate_launch_description():
     launch_description.append(declare_launch_container_cmd)
     launch_description.extend(declare_arguments)
     launch_description.append(container_node)
-    launch_description.append(load_composable_nodes)
+    launch_description.append(delayed_load)
 
     return LaunchDescription(launch_description)

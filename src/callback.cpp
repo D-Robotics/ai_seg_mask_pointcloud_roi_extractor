@@ -14,7 +14,7 @@
 
 #include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
 
-namespace robot::ai_seg_mask_pointcloud_roi_extractor
+namespace seg_mask_roi_extractor
 {
     void AISegMaskPointCloudROIExtractor::parserDepthMaskCallback(const sensor_msgs::msg::Image::ConstSharedPtr &depth_msg, 
                                                       const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg)
@@ -552,4 +552,4 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         return true;
     }
 
-} // namespace robot::ai_seg_mask_pointcloud_roi_extractor
+} // namespace seg_mask_roi_extractor

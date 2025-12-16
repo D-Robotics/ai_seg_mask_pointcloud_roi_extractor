@@ -20,7 +20,7 @@
 
 #include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
 
-namespace robot::ai_seg_mask_pointcloud_roi_extractor
+namespace seg_mask_roi_extractor
 {
 
     AISegMaskPointCloudROIExtractor::AISegMaskPointCloudROIExtractor(const rclcpp::NodeOptions &options)
@@ -29,19 +29,19 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor Constructed Start");
 
         {
-        std::string node_start_time_str = timeStampTimeToString(this->now());
-        RCLCPP_INFO(this->get_logger(), "\n Node Start Time is: %s \n", node_start_time_str.c_str());
+            std::string node_start_time_str = timeStampTimeToString(this->now());
+            RCLCPP_INFO(this->get_logger(), "\n Node Start Time is: %s \n", node_start_time_str.c_str());
         }
         
         // Create parameters object
         if (!params_)
         {
-        params_ = std::make_shared<AISegMaskPointCloudROIExtractorPara>();
+            params_ = std::make_shared<AISegMaskPointCloudROIExtractorPara>();
         }
 
         if (!initParam())
         {
-        RCLCPP_ERROR(get_logger(), "Init Failed !");
+            RCLCPP_ERROR(get_logger(), "Init Failed !");
         }
         
         RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor Constructed End");
@@ -63,8 +63,8 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         if (!parserYamlParam())
         {
-        RCLCPP_ERROR(get_logger(), "Failed to convert class info to maps!");
-        return false;
+            RCLCPP_ERROR(get_logger(), "Failed to convert class info to maps!");
+            return false;
         }
 
         if (!dynamicParaCallback())
@@ -222,4 +222,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         return false;
     }
 
-}  // namespace robot::ai_seg_mask_pointcloud_roi_extractor
+}  // namespace seg_mask_roi_extractor
+
+// Register the component with class_loader
+RCLCPP_COMPONENTS_REGISTER_NODE(seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor)

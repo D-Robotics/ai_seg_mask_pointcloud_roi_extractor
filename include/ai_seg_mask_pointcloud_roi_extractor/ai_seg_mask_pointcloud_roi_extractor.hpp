@@ -69,7 +69,7 @@
     } while (0);
 
 
-namespace robot::ai_seg_mask_pointcloud_roi_extractor
+namespace seg_mask_roi_extractor
 {
     /**
     * @struct BoxInfo
@@ -585,7 +585,7 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
     };
 
-}  // namespace robot::ai_seg_mask_pointcloud_roi_extractor
+} 
 
-// Register the component with class_loader
-RCLCPP_COMPONENTS_REGISTER_NODE(robot::ai_seg_mask_pointcloud_roi_extractor::AISegMaskPointCloudROIExtractor)
+// // Register the component with class_loader
+// RCLCPP_COMPONENTS_REGISTER_NODE(seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor)

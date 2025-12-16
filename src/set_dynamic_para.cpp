@@ -19,7 +19,7 @@
 
 #include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
 
-namespace robot::ai_seg_mask_pointcloud_roi_extractor
+namespace seg_mask_roi_extractor
 {
     bool AISegMaskPointCloudROIExtractor::dynamicParaCallback()
     {
@@ -110,4 +110,4 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
 
         return result;
     }
-} // namespace robot::ai_seg_mask_pointcloud_roi_extractor
+} // namespace seg_mask_roi_extractor

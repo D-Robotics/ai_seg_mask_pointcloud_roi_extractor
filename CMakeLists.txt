@@ -32,15 +32,19 @@ find_package(OpenCV 4 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-# ========== 构建组件库 ==========
-add_library(${PROJECT_NAME}_component SHARED
-  src/ai_seg_mask_pointcloud_roi_extractor.cpp
+set(SOURCE_FILES1 
   src/callback.cpp
   src/publish.cpp
   src/set_dynamic_para.cpp
   src/time_stamp.cpp
   src/read_param.cpp
   src/time_sync_detect.cpp
+)
+
+# ========== 构建组件库 ==========
+add_library(${PROJECT_NAME}_component SHARED
+  src/ai_seg_mask_pointcloud_roi_extractor.cpp
+  ${SOURCE_FILES1}
 )
 
 # 目标包含目录（仅保留必要路径）
@@ -76,25 +80,37 @@ target_link_libraries(${PROJECT_NAME}_component
 
 # ========== 注册组件（核心功能保留） ==========
 rclcpp_components_register_nodes(${PROJECT_NAME}_component
-  PLUGIN "robot::ai_seg_mask_pointcloud_roi_extractor::AISegMaskPointCloudROIExtractor"
+  PLUGIN "seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor"
 #   EXECUTABLE ${PROJECT_NAME}
 )
 
+ament_export_dependencies(rosidl_default_runtime)
+
 # ========== 安装规则 ==========
-install(TARGETS ${PROJECT_NAME}_component
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
+# install(TARGETS 
+#   ${PROJECT_NAME}_component
+#   ARCHIVE DESTINATION lib
+#   LIBRARY DESTINATION lib
+#   RUNTIME DESTINATION bin
+# )
+
+install(TARGETS 
+  ${PROJECT_NAME}_component
+  DESTINATION lib/
 )
 
 install(DIRECTORY include/
   DESTINATION include/
 )
 
-install(DIRECTORY launch config
+install(DIRECTORY 
+  launch 
+  config
   DESTINATION share/${PROJECT_NAME}/
 )
 
-# 仅保留必要的导出和包配置
-ament_export_dependencies(ament_cmake rclcpp ai_msgs PCL OpenCV)
+
+# ament_export_dependencies(ament_cmake rclcpp ai_msgs PCL OpenCV)
+# ament_export_libraries(${PROJECT_NAME}_component)
+
 ament_package()

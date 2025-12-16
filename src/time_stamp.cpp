@@ -14,7 +14,7 @@
 
 #include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
 
-namespace robot::ai_seg_mask_pointcloud_roi_extractor
+namespace seg_mask_roi_extractor
 {
     rclcpp::Time AISegMaskPointCloudROIExtractor::timeStampDoubleToTime(double time_stamp)
     {
@@ -64,4 +64,4 @@ namespace robot::ai_seg_mask_pointcloud_roi_extractor
         return timeStampDoubleToTime(headerTimeStampTimeToDoubleSec(header));
     }
 
-} // namespace robot::ai_seg_mask_pointcloud_roi_extractor
+} // namespace seg_mask_roi_extractor
