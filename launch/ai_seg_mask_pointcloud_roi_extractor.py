@@ -94,20 +94,12 @@ def generate_launch_description():
         ],
     )
 
-    delayed_load = TimerAction(
-        period=1.0,
-        actions=[
-            LogInfo(msg=PythonExpression(['"Loading composable nodes into container " + "', container_name, '"'])),
-            load_composable_nodes
-        ]
-    )
-
     # launch description
     launch_description = []
     launch_description.append(declare_container_name_cmd)
     launch_description.append(declare_launch_container_cmd)
     launch_description.extend(declare_arguments)
     launch_description.append(container_node)
-    # launch_description.append(delayed_load)
+    launch_description.append(load_composable_nodes)
 
     return LaunchDescription(launch_description)
