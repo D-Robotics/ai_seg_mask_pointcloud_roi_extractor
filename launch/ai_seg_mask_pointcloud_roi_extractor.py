@@ -108,6 +108,6 @@ def generate_launch_description():
     launch_description.append(declare_launch_container_cmd)
     launch_description.extend(declare_arguments)
     launch_description.append(container_node)
-    launch_description.append(delayed_load)
+    # launch_description.append(delayed_load)
 
     return LaunchDescription(launch_description)
