@@ -169,7 +169,7 @@ namespace seg_mask_roi_extractor
         } 
         else 
         {
-            RCLCPP_WARN(get_logger(), "❌ Topic [%s] - does not exist, Check Method : [ros2 topic info %s --once]", 
+            RCLCPP_WARN(get_logger(), "❌ Topic [%s] - does not exist, Check Method : [ros2 topic hz %s]", 
                                             topic_name.c_str(), topic_name.c_str());
             return false;
         }

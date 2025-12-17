@@ -250,12 +250,11 @@ ros2 param set /seg_mask debug true
 ```
 
 ## 12. 资源占用
-RDK-X5 CPU ： 
 
-![CPU占用](./image/README/cpu.jpg)
+| 开发板型号 |  CPU频率 | CPU占用 | 话题发布平均帧率 | Time-Delay|
+|---------|---------|---------|---------|---------|
+| RDK-X5 CPU (8核) | 1500 | 28% | 13HZ| 78ms|
 
-RDK-X5 FPS ：
-![FPS](./image/README/fps.jpg)
 
 ## 13. 许可证
 

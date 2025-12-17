@@ -246,12 +246,10 @@ ros2 param set/seg_mask debug true
 ```
 
 ## 12. Resource Occupancy
-RDK-X5 CPU ： 
 
-![CPU占用](./image/README/cpu.jpg)
-
-RDK-X5 FPS ：
-![FPS](./image/README/fps.jpg)
+| Development Board Model |  CPU Frequency | CPU Usage | Average Frame Rate of Topic Publishing | Time-Delay|
+|---------|---------|---------|---------|---------|
+| RDK-X5 CPU (8核) | 1500 | 28% | 13HZ| 78ms|
 
 ## 13. License
 
