@@ -8,6 +8,14 @@ seg_mask:
       range: []
       unit: ""
 
+    time_debug:
+      description: "Check the time of each module"
+      description_en: "Debug mode"
+      type: "bool"
+      default_value: "false"
+      range: []
+      unit: ""
+
     topic_check:
       description: "订阅的话题存在性检测"
       description_en: "Topic check"

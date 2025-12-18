@@ -19,7 +19,12 @@
 #include <unordered_map>
 #include <mutex>
 #include <map>
+#include <cstdint>
+#include <iomanip>
+#include <sstream>
 #include <chrono>
+#include <future>
+#include <functional>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <rclcpp/time.hpp>
@@ -105,6 +110,7 @@ namespace seg_mask_roi_extractor
         using Ptr = std::shared_ptr<AISegMaskPointCloudROIExtractorPara>;
 
         bool debug{false};                             ///< Debug mode
+        bool time_debug{false};                        /// Time debug
         bool topic_check{false};                       ///< Topic check
         std::string  depth_image_topic{""};            ///< Depth image topic name
         std::string  detect_info_topic{""} ;           ///< Segmentation detect topic name
@@ -128,6 +134,7 @@ namespace seg_mask_roi_extractor
         /**
         * @brief Constructor for depth mask extractor parameters
         * @param debug Debug mode
+        * @param time_debug Time debug
         * @param topic_check Topic check
         * @param depth_image_topic Depth image topic name
         * @param detect_info_topic Segmentation detect topic name
@@ -150,6 +157,7 @@ namespace seg_mask_roi_extractor
         */
         AISegMaskPointCloudROIExtractorPara(
             bool debug,
+            bool time_debug,
             bool topic_check,
             std::string  depth_image_topic,      
             std::string  detect_info_topic,  
@@ -171,6 +179,7 @@ namespace seg_mask_roi_extractor
             bool use_extractor
         ) : 
         debug(debug),
+        time_debug(time_debug),
         topic_check(topic_check),
         depth_image_topic(depth_image_topic),
         detect_info_topic(detect_info_topic),
@@ -204,6 +213,7 @@ namespace seg_mask_roi_extractor
         {
             RCLCPP_INFO(logger, "DepthMaskExtractor-Config-Param:");
             RCLCPP_INFO(logger, "  debug: %s", this->debug ? "true" : "false");
+            RCLCPP_INFO(logger, "  time_debug: %s", this->time_debug ? "true" : "false");
             RCLCPP_INFO(logger, "  topic_check: %s", this->topic_check ? "true" : "false");
             RCLCPP_INFO(logger, "  depth_image_topic: %s", this->depth_image_topic.c_str());
             RCLCPP_INFO(logger, "  detect_info_topic: %s", this->detect_info_topic.c_str());
@@ -232,6 +242,7 @@ namespace seg_mask_roi_extractor
         void declare_parameters(rclcpp::Node* node)
         {
             node->declare_parameter("debug", false);
+            node->declare_parameter("time_debug", false);
             node->declare_parameter("topic_check", false);
             node->declare_parameter("depth_image_topic", "image_raw");
             node->declare_parameter("detect_info_topic", "hobot_dnn_detection");
@@ -260,6 +271,7 @@ namespace seg_mask_roi_extractor
         void get_parameters(rclcpp::Node* node)
         {
             node->get_parameter("debug", this->debug);
+            node->get_parameter("time_debug", this->time_debug);
             node->get_parameter("topic_check", this->topic_check);
             node->get_parameter("depth_image_topic", this->depth_image_topic);
             node->get_parameter("detect_info_topic", this->detect_info_topic);
@@ -451,6 +463,13 @@ namespace seg_mask_roi_extractor
             void parserDepthMaskCallback(const sensor_msgs::msg::Image::ConstSharedPtr &depth_msg, 
                                         const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg);
 
+                                                    /**
+            * @brief Parser data for synchronized depth and mask messages
+            * @param depth_msg Shared pointer to the depth image message
+            * @param mask_msg Shared pointer to the mask image message
+            */
+            void parserDepthMask(const sensor_msgs::msg::Image::ConstSharedPtr &depth_msg, 
+                                const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg);
             /**
             * @brief Parse depth image message into a cv::Mat
             * @param depth_msg Shared pointer to the depth image message

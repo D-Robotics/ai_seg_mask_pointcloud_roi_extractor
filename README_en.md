@@ -116,6 +116,7 @@ The project uses YAML files for parameter configuration. The main configuration 
 | Parameter Name | Type | Default Value | Description | Unit |
 |---------------|------|---------------|-------------|------|
 | debug | bool | false | Enable debug mode to output more detailed log information | - |
+| time_debug | bool | false | Enable debug mode to output more detailed time information | - |
 | topic_check | bool | false | Subscribe topic existence detection | - |
 | depth_image_topic | string | "/StereoNetNode/stereonet_depth" | Depth image subscription topic | - |
 | detect_info_topic | string | "/hobot_dnn_detection" | AI segmentation detection information subscription topic | - |
@@ -156,6 +157,8 @@ ros2 param set /seg_mask topic_check true
 
 # Dynamically enable debug mode
 ros2 param set /seg_mask debug true
+
+
 ```
 
 ## 7. Message Format
@@ -230,6 +233,9 @@ ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extr
 
 # Dynamically adjust log level
 ros2 param set /seg_mask log_level debug
+
+# Dynamically check time
+ros2 param set /seg_mask time_debug true
 ```
 
 ### 11.2 Check Parameters
@@ -249,7 +255,7 @@ ros2 param set/seg_mask debug true
 
 | Development Board Model |  CPU Frequency | CPU Usage | Average Frame Rate of Topic Publishing | Time-Delay|
 |---------|---------|---------|---------|---------|
-| RDK-X5 CPU (8核) | 1500 | 28% | 13HZ| 78ms|
+| RDK-X5 CPU (8核) | 1500 | Approximately-28% | Approximately-13HZ| Approximately-7ms|
 
 ## 13. License
 

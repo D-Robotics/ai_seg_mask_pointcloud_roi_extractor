@@ -102,6 +102,12 @@ namespace seg_mask_roi_extractor
                     RCLCPP_ERROR(get_logger(), "Topic detection exception !");
                 }
             }
+            else if (param.get_name() == "time_debug")
+            {
+                RCLCPP_INFO(get_logger(), "Update time debug mode");
+                params_->time_debug = param.as_bool();
+                RCLCPP_INFO(get_logger(), "time debug updated to: %s", params_->time_debug ? "true" : "false");
+            }
             else
             {
                 

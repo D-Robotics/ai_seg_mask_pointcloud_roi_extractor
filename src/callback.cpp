@@ -26,102 +26,137 @@ namespace seg_mask_roi_extractor
             return;
         }
 
-        std::chrono::high_resolution_clock::time_point start, end;
-        start = std::chrono::high_resolution_clock::now();
-        rclcpp::Time now = this->get_clock()->now();
-        rclcpp::Time depth_time(depth_msg->header.stamp);
-        rclcpp::Time detect_time(detect_info_msg->header.stamp);
-        if (params_->debug)
+        RUN_AND_TIMING_PREFIX(
+            "DEPTH_MASK_Callback",
+            params_->time_debug,
+            parserDepthMask(depth_msg, detect_info_msg));
+    }
+   
+    
+    void AISegMaskPointCloudROIExtractor::parserDepthMask(const sensor_msgs::msg::Image::ConstSharedPtr &depth_msg, 
+                                                        const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg)
+    {
+        // ===================Check if messages are valid============================
+        if (!depth_msg || !detect_info_msg) 
         {
+            RCLCPP_ERROR(get_logger(), "Invalid depth or detect info message received !");
+            return;
+        }
+
+        rclcpp::Time depth_time(depth_msg->header.stamp);
+        if (params_->time_debug && params_->debug)
+        {
+            rclcpp::Time now = this->get_clock()->now();
+            rclcpp::Time detect_time(detect_info_msg->header.stamp);
             rclcpp::Duration depth_delay = now - depth_time;
             rclcpp::Duration detect_info_delay = now - detect_time;
             rclcpp::Duration msg_time_diff = depth_time - detect_time;
 
-            RCLCPP_DEBUG(get_logger(), "Received synchronized depth and mask messages");
+            RCLCPP_INFO(get_logger(), "Received synchronized depth and mask messages");
             
-            RCLCPP_DEBUG(get_logger(), "Depth Msg timestamp: %d.%09u", 
+            RCLCPP_INFO(get_logger(), "Depth Msg timestamp: %d.%09u", 
                                         depth_msg->header.stamp.sec, depth_msg->header.stamp.nanosec);
-            RCLCPP_DEBUG(get_logger(), "Detect-Info Msg timestamp: %d.%09u", 
+            RCLCPP_INFO(get_logger(), "Detect-Info Msg timestamp: %d.%09u", 
                                         detect_info_msg->header.stamp.sec, detect_info_msg->header.stamp.nanosec);
             
-            RCLCPP_DEBUG(get_logger(), "Depth Msg publish-subscribe delay: %.3f ms (%.6f s)", 
+            RCLCPP_INFO(get_logger(), "Depth Msg publish-subscribe delay: %.3f ms (%.6f s)", 
                                         depth_delay.nanoseconds() / 1000000.0, depth_delay.seconds());
-            RCLCPP_DEBUG(get_logger(), "Detect-Info Msg publish-subscribe delay: %.3f ms (%.6f s)", 
+            RCLCPP_INFO(get_logger(), "Detect-Info Msg publish-subscribe delay: %.3f ms (%.6f s)", 
                                         detect_info_delay.nanoseconds() / 1000000.0, detect_info_delay.seconds());
-            RCLCPP_DEBUG(get_logger(), "Depth-Mask Msg time difference: %.3f ms (%.6f s)", 
+            RCLCPP_INFO(get_logger(), "Depth-Mask Msg time difference: %.3f ms (%.6f s)", 
                                         std::llabs(msg_time_diff.nanoseconds()) / 1000000.0, 
                                         std::abs(msg_time_diff.seconds()));
         }
 
         std::string frame_id = depth_msg->header.frame_id;
         double time_stamp = headerTimeStampTimeToDoubleSec(depth_msg->header);
+
         if (last_time_ == -std::numeric_limits<double>::infinity())
         {
             last_time_ = time_stamp;
         }
         else
         {
-            if (std::abs(time_stamp - last_time_) > sync_time_delta_)
+            double time_diff = std::abs(time_stamp - last_time_);
+            if (time_diff > sync_time_delta_)
             {
                 RCLCPP_WARN(get_logger(), "The delay of time synchronization between the depth map and mask exceeds the set threshold, current_time=%f(s), last_time=%f(s), delta=%f(s)", 
-                            time_stamp, last_time_, std::abs(time_stamp - last_time_));
+                            time_stamp, last_time_, time_diff);
             }
             last_time_ = time_stamp;
             last_receive_time_ = depth_time;
         }
 
-        // Parse Depth Map
+        // ==========================Parse Depth Map====================================
         cv::Mat depth_img = cv::Mat::zeros(params_->camera_height, params_->camera_width, CV_16UC1);
-        if (!parserDepth(depth_msg, depth_img))
+        bool parser_status_status;
+        RUN_AND_TIMING_PREFIX("PARSER_DEPTH", 
+                        params_->time_debug, 
+                        parser_status_status = parserDepth(depth_msg, depth_img));
+        if (!parser_status_status)
         {
             RCLCPP_ERROR(get_logger(), "Depth map parsing failed !");
             return;
         }
 
-        // Parse detection information to generate a valid region mask
+        // ====================Parse detection information to generate a valid region mask======
         cv::Mat mask_img = cv::Mat::zeros(params_->camera_height, params_->camera_width, CV_8UC1);
-        if (!parserDetectInfo(detect_info_msg, mask_img)) 
+        bool parser_detect_info_status;
+        RUN_AND_TIMING_PREFIX("PARSER_DETECT_INFO", 
+                            params_->time_debug, 
+                            parser_detect_info_status = parserDetectInfo(detect_info_msg, mask_img));
+        if (!parser_detect_info_status) 
         {
             RCLCPP_ERROR(get_logger(), "Detect info parsing failed !");
             return;
-
         }
 
-        // Dilate the mask
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
-        cv::dilate(mask_img,  mask_img, kernel, cv::Point(-1,-1), params_->dilate_iter_num);
-
-        // Filter out areas of no interest
-        setDepthZeroByMask(mask_img, depth_img);
+        // ===================Filter out areas of no interest==============================
+        RUN_AND_TIMING_PREFIX("SET_DEPTH_ZERO_BY_MASK", 
+                            params_->time_debug, 
+                            setDepthZeroByMask(mask_img, depth_img));
         
-        pubImage(time_stamp, frame_id, depth_img, filtered_depth_pub_);
-
-        end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        RCLCPP_DEBUG(get_logger(), "[parserDepthMaskCallback()] Run Time = %.3f ms", duration.count() / 1000.0);
-
-        // Obtain the mask of the depth map
-        cv::Mat depth_mask;
-        if (!generateMaskByDepth(depth_img, depth_mask))
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to obtain the mask of the depth map !");
-            return;
-        }
-        pubImage(time_stamp, frame_id, depth_mask, filtered_depth_mask_pub_);
+        RUN_AND_TIMING_PREFIX("PUBLIC_FILTERED_DEPTH", 
+            params_->time_debug, 
+            pubImage(time_stamp, frame_id, depth_img, filtered_depth_pub_));
 
         if(params_->debug)
         {
-            // Depth Map to Point Cloud
+            // ================Obtain the mask of the depth map===============
+            cv::Mat depth_mask;
+            bool generate_mask_status;
+            RUN_AND_TIMING_PREFIX("GENERATE_MASK_BY_DEPTH", 
+                                params_->time_debug, 
+                                generate_mask_status = generateMaskByDepth(depth_img, depth_mask));
+            if (!generate_mask_status)
+            {
+                RCLCPP_ERROR(get_logger(), "Failed to obtain the mask of the depth map !");
+                return;
+            }
+
+            RUN_AND_TIMING_PREFIX("PUBLIC_FILTERED_DEPTH_MASK", 
+                params_->time_debug, 
+                pubImage(time_stamp, frame_id, depth_mask, filtered_depth_mask_pub_));
+
+
+            // ================Depth Map to Point Cloud===========================
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
             cv::Mat mask_label = cv::Mat::zeros(depth_img.size(), CV_8UC1);
-            if(!convertDepthToPointcloud(depth_img, mask_label, cloud))
+            bool generate_point_cloud; 
+            RUN_AND_TIMING_PREFIX("CONVERT_DEPTH_TO_POINT_CLOUD", 
+                            params_->time_debug, 
+                            generate_point_cloud = convertDepthToPointcloud(depth_img, mask_label, cloud));
+
+            if(!generate_point_cloud)
             {
                 RCLCPP_ERROR(get_logger(), "Depth map to point cloud conversion failed !");
                 return;
             }
-            pubPointCloud(cloud, frame_id, time_stamp, filtered_cloud_pub_);
-        }
 
+            RUN_AND_TIMING_PREFIX("PUBLIC_FILTERED_POINT_CLOUD", 
+                            params_->time_debug, 
+                            pubPointCloud(cloud, frame_id, time_stamp, filtered_cloud_pub_));
+        }
         return;
     }
 
@@ -441,6 +476,10 @@ namespace seg_mask_roi_extractor
             RCLCPP_ERROR(get_logger(), "Mask or depth_img is empty!");
             return false;
         }
+
+        // Dilate the mask
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+        cv::dilate(mask, mask, kernel, cv::Point(-1,-1), params_->dilate_iter_num);
 
         if (mask.size() != depth_img.size()) 
         {

@@ -119,6 +119,7 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | 参数名称 | 类型 | 默认值 | 描述 | 单位 |
 |---------|------|-------|------|------|
 | debug | bool | false | 是否启用调试模式，启用后会输出更详细的日志信息 | - |
+| time_debug | bool | false | 是否启用查看各个模块的运行时间，启用后会输出更详细的日志信息 | - |
 | topic_check | bool | false | 订阅话题存在性检测 | - |
 | depth_image_topic | string | "/StereoNetNode/stereonet_depth" | 深度图订阅话题 | - |
 | detect_info_topic | string | "/hobot_dnn_detection" | AI分割检测信息订阅话题 | - |
@@ -234,6 +235,9 @@ ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extr
 
 # 动态调整日志级别
 ros2 param set /seg_mask log_level debug
+
+# 查看各个模块的运行时间
+ros2 param set /seg_mask time_debug true
 ```
 
 ### 11.2 检查参数
@@ -253,7 +257,7 @@ ros2 param set /seg_mask debug true
 
 | 开发板型号 |  CPU频率 | CPU占用 | 话题发布平均帧率 | Time-Delay|
 |---------|---------|---------|---------|---------|
-| RDK-X5 CPU (8核) | 1500 | 28% | 13HZ| 78ms|
+| RDK-X5 CPU (8核) | 1500 | Approximately-28% | Approximately-13HZ| Approximately-7ms|
 
 
 ## 13. 许可证

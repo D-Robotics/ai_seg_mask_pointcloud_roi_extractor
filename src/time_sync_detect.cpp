@@ -30,7 +30,7 @@ namespace seg_mask_roi_extractor
 
             if (std::abs(time_delay.seconds()) > sync_time_delta_)
             {
-                RCLCPP_WARN(get_logger(),"Sync ata timeout! No synchronized data for %.2fs (threshold: %.2fs)",
+                RCLCPP_WARN(get_logger(),"Sync data timeout! No synchronized data for %.2fs (threshold: %.2fs)",
                                 std::abs(time_delay.seconds()), sync_time_delta_);
             }
         }
