@@ -39,7 +39,8 @@ namespace seg_mask_roi_extractor
 
     bool AISegMaskPointCloudROIExtractor::timeSyncDetect()
     {
+        last_receive_time_ = this->now() - rclcpp::Duration(std::chrono::milliseconds(static_cast<long int>(sync_time_delta_ * 1000)));
         timeSyncTimer_ = create_wall_timer(std::chrono::seconds(1), std::bind(& AISegMaskPointCloudROIExtractor::timeSyncStatus, this));
-        return true;
+        return true;    
     }
 } 

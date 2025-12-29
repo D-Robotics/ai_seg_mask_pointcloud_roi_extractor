@@ -52,7 +52,7 @@ namespace seg_mask_roi_extractor
         }
         catch (const cv::Exception &e)
         {
-            RCLCPP_ERROR(get_logger(), "cv_bridge exception: {}", e.what());
+            RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
         }
         return;
     }
