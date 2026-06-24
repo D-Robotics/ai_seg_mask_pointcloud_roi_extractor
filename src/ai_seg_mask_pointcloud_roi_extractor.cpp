@@ -39,11 +39,19 @@ namespace seg_mask_roi_extractor
             params_ = std::make_shared<AISegMaskPointCloudROIExtractorPara>();
         }
 
-        if (!initParam())
-        {
-            RCLCPP_ERROR(get_logger(), "Init Failed !");
-        }
-        
+        // Defer heavy initialization (topic checks, subscriber setup) to avoid
+        // blocking the component container's node loading. Use a one-shot timer
+        // so initParam() runs once the executor is spinning.
+        init_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(0),
+            [this]() {
+                init_timer_->cancel();
+                if (!initParam())
+                {
+                    RCLCPP_ERROR(get_logger(), "Init Failed !");
+                }
+            });
+
         RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor Constructed End");
     }
 
@@ -102,9 +110,6 @@ namespace seg_mask_roi_extractor
                         params_->class_info_topic, 
                         rclcpp::QoS(DEFAULT_QOS_DEPTH), 
                         std::bind(&AISegMaskPointCloudROIExtractor::classInfoCallback, this, std::placeholders::_1));
-
-        // Ensure that the camera intrinsic parameters and category information have been successfully subscribed before executing the following callback
-        rclcpp::sleep_for(std::chrono::milliseconds(1000));
 
         // Create message filter subscribers for time synchronization
         RCLCPP_INFO(get_logger(), "Time synchronizer initialized with absolute time alignment");
@@ -169,8 +174,9 @@ namespace seg_mask_roi_extractor
         } 
         else 
         {
-            RCLCPP_WARN(get_logger(), "❌ Topic [%s] - does not exist, Check Method : [ros2 topic hz %s]", 
-                                            topic_name.c_str(), topic_name.c_str());
+            RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 3000,
+                "❌ Topic [%s] - does not exist, Check Method : [ros2 topic hz %s]", 
+                topic_name.c_str(), topic_name.c_str());
             return false;
         }
     }

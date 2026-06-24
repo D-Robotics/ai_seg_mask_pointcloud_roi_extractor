@@ -600,6 +600,7 @@ namespace seg_mask_roi_extractor
             double last_time_ = -std::numeric_limits<double>::infinity();  ///< Record the time of the previous frame data
             double sync_time_delta_{0.5}; ///< Time synchronization time interval
             rclcpp::TimerBase::SharedPtr timeSyncTimer_{nullptr};
+            rclcpp::TimerBase::SharedPtr init_timer_{nullptr};
             rclcpp::Time last_receive_time_;
 
     };
