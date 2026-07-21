@@ -44,9 +44,14 @@ def generate_launch_description():
                     "launch_container",
                     default_value="True",
                     description="Whether to launch the container")
+    declare_use_gdb_cmd = DeclareLaunchArgument(
+                    "use_gdb",
+                    default_value="False",
+                    description="Run component_container under GDB for debugging")
 
     container_name = LaunchConfiguration("container_name")
     launch_container = LaunchConfiguration("launch_container")
+    use_gdb = LaunchConfiguration("use_gdb")
     print(f"container_name= {container_name}, launch_container= {launch_container}")
 
     descriptions_dir = os.path.join(parent_dir, 'config', 'descriptions')
@@ -54,6 +59,7 @@ def generate_launch_description():
     visual_params_path = os.path.join(parent_dir, 'config', 'params.yaml')
     print(f"visual_params_path = {visual_params_path}")
     auto_launch_arguments = AutoLaunchArguments(descriptions_dir, visual_params_path)
+    
     declare_arguments = auto_launch_arguments.get_declare_arguments()
     launch_parameters = auto_launch_arguments.get_config_parameters()
 
@@ -61,9 +67,31 @@ def generate_launch_description():
     if log_level is None:
         raise ValueError("[log_level] parameter not found")
     print(f"log_level= {log_level}")
-    
+
+    # Conditions: mutually exclusive
+    cond_launch_gdb = PythonExpression(
+        ["'", use_gdb, "' == 'True' and '", launch_container, "' == 'True'"])
+    cond_launch_normal = PythonExpression(
+        ["'", use_gdb, "' == 'False' and '", launch_container, "' == 'True'"])
+
+    # Container node with GDB
+    container_node_gdb = Node(
+        condition=IfCondition(cond_launch_gdb),
+        package="rclcpp_components",
+        executable="component_container",
+        name=container_name,
+        output="screen",
+        emulate_tty=True,
+        prefix='gdb -batch -ex run -ex "bt" -ex "bt full" -ex "info threads" -ex quit --args',
+        arguments=[
+            "--ros-args",
+            "--log-level",
+            log_level,
+        ])
+
+    # Container node normal
     container_node = Node(
-        condition=IfCondition(launch_container),
+        condition=IfCondition(cond_launch_normal),
         package="rclcpp_components",
         executable="component_container",
         name=container_name,
@@ -79,11 +107,11 @@ def generate_launch_description():
         target_container=container_name,
         composable_node_descriptions=[
             ComposableNode(
-                package="ai_seg_mask_pointcloud_roi_extractor",
-                plugin="robot::ai_seg_mask_pointcloud_roi_extractor::AISegMaskPointCloudROIExtractor",
+                package="mask_pc_roi_extractor",
+                plugin="robot::mask_pc_roi_extractor::MaskPcRoiExtractor",
                 name="seg_mask",
-                parameters=launch_parameters,
-                extra_arguments=[{"use_intra_process_comms": True}],
+                parameters=[visual_params_path] + launch_parameters,
+                extra_arguments=[{"use_intra_process_comms": False}],
             ),
         ],
     )
@@ -92,8 +120,10 @@ def generate_launch_description():
     launch_description = []
     launch_description.append(declare_container_name_cmd)
     launch_description.append(declare_launch_container_cmd)
+    launch_description.append(declare_use_gdb_cmd)
     launch_description.extend(declare_arguments)
     launch_description.append(container_node)
+    launch_description.append(container_node_gdb)
     launch_description.append(load_composable_nodes)
 
     return LaunchDescription(launch_description)

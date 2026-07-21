@@ -23,7 +23,17 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 sys.path.append(current_dir)
 
-NODE_NAME = "ai_seg_mask_pointcloud_roi_extractor_node"
+NODE_NAME = "seg_mask"
+
+def _to_plain_dict(obj):
+    """Recursively convert OrderedDict to plain dict for safe YAML serialization."""
+    if isinstance(obj, OrderedDict):
+        return {k: _to_plain_dict(v) for k, v in obj.items()}
+    if isinstance(obj, dict):
+        return {k: _to_plain_dict(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_plain_dict(v) for v in obj]
+    return obj
 
 class AutoLaunchArguments:
     def __init__(self, descriptions_dir, visual_params_path):
@@ -111,15 +121,19 @@ class AutoLaunchArguments:
                         param_type = param_data.get('type', '').lower()
                         
                         if param_type == 'bool':
-                            value = True if default_value.lower() == 'true' else False
+                            # yaml.safe_load may parse unquoted true/false as Python bool
+                            if isinstance(default_value, bool):
+                                value = default_value
+                            else:
+                                value = str(default_value).lower() == 'true'
                         elif param_type == 'int':
                             value = int(default_value)
                         elif param_type == 'double' or param_type == 'float':
                             value = float(default_value)
                         elif param_type == 'string':
-                            value = default_value
+                            value = str(default_value)
                         else:
-                            raise ValueError(f"Unknown type {param_type} for parameter {param_name}")   
+                            raise ValueError(f"Unknown type {param_type} for parameter {param_name}")
                         
                         self.params_dict[NODE_NAME]['ros__parameters'][param_name] = value
                 
@@ -129,7 +143,10 @@ class AutoLaunchArguments:
         os.makedirs(os.path.dirname(self.visual_params_path), exist_ok=True)
         
         with open(self.visual_params_path, 'w', encoding='utf-8') as file:
-            yaml.dump(self.params_dict, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            # Convert OrderedDict to plain dict to avoid Python-specific YAML tags
+            # (e.g. !!python/object/apply:collections.OrderedDict) that ROS 2 can't parse.
+            plain_dict = _to_plain_dict(self.params_dict)
+            yaml.safe_dump(plain_dict, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
         
         print(f"Successfully generated params.yaml at {self.visual_params_path}")
     

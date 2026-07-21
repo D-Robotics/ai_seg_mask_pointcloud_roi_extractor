@@ -13,66 +13,166 @@
 // limitations under the License.
 
 
-#include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
+#include "mask_pc_roi_extractor/mask_pc_roi_extractor.hpp"
 
-namespace robot::ai_seg_mask_pointcloud_roi_extractor
+namespace robot::mask_pc_roi_extractor
 {
-    void AISegMaskPointCloudROIExtractor::pubImage(double timestamp,
-                            std::string frame_id,
-                            cv::Mat &image,
-                            rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher)
-    {
-        sensor_msgs::msg::Image::SharedPtr ros_image;
-        try
-        {
-            int image_type = image.type();
-            std::string encoding;
-            if (image_type == CV_16UC1)
-            {
-                encoding = "mono16";
-            }
-            else if (image_type == CV_32FC1)
-            {
-                encoding = "32FC1";
-            }
-            else
-            {
-                encoding = image.channels() > 1 ? "rgb8" : "mono8";
-            }
-            
-            ros_image = cv_bridge::CvImage(
-                        std_msgs::msg::Header(),
-                        encoding, 
-                        image)
-                        .toImageMsg();
 
-            ros_image->header.frame_id = frame_id;
-            ros_image->header.stamp = timeStampDoubleToTime(timestamp);
-            publisher->publish(*ros_image);
-        }
-        catch (const cv::Exception &e)
-        {
-            RCLCPP_ERROR(get_logger(), "cv_bridge exception: {}", e.what());
-        }
+// ══════════════════════════════════════════════════════════════════════
+// pubImage — raw / uncompressed
+// ══════════════════════════════════════════════════════════════════════
+
+void MaskPcRoiExtractor::pubImage(double timestamp,
+                        const std::string& frame_id,
+                        cv::Mat &image,
+                        rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher)
+{
+    pubImageCompressed(timestamp, frame_id, image, publisher,
+                       ImageCompression::kNone, 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// pubImageCompressed — with compression support
+// ══════════════════════════════════════════════════════════════════════
+
+void MaskPcRoiExtractor::pubImageCompressed(
+    double timestamp,
+    const std::string& frame_id,
+    cv::Mat &image,
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher,
+    ImageCompression compression,
+    int quality)
+{
+    if (!publisher)
+    {
+        RCLCPP_ERROR(get_logger(), "pubImageCompressed: publisher is null");
         return;
     }
 
-    void AISegMaskPointCloudROIExtractor::pubPointCloud(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud,
-                                    std::string frame_id,
-                                    double timestamp,
-                                    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher)
+    try
     {
-        if (!cloud || !publisher) 
+        std::string encoding = inferImageEncoding(image);
+
+        if (compression == ImageCompression::kNone)
         {
-        RCLCPP_ERROR(get_logger(), "Invalid point cloud data or publisher for publishing!");
-        return;
+            // ── Raw / uncompressed path ─────────────────────────
+            auto msg = std::make_unique<sensor_msgs::msg::Image>();
+            cv_bridge::CvImage(std_msgs::msg::Header(), encoding, image)
+                .toImageMsg(*msg);
+            msg->header.frame_id = frame_id;
+            msg->header.stamp = timeStampDoubleToTime(timestamp);
+            publisher->publish(std::move(msg));
         }
-        sensor_msgs::msg::PointCloud2 ros_cloud;
-        pcl::toROSMsg(*cloud, ros_cloud);
-        ros_cloud.header.frame_id = frame_id;
-        ros_cloud.header.stamp = timeStampDoubleToTime(timestamp);
-        publisher->publish(ros_cloud);
-        return;
+        else
+        {
+            // ── Compressed path ─────────────────────────────────
+            // Encode the cv::Mat into a compressed byte buffer,
+            // then wrap it as a raw sensor_msgs::Image with
+            // encoding set to "jpeg" or "png" so that subscribers
+            // (e.g. rqt_image_view, RViz2) can decode transparently.
+            std::vector<uchar> buf;
+            std::vector<int> encode_params;
+            std::string comp_encoding;
+            std::string file_ext;
+
+            if (compression == ImageCompression::kJpeg)
+            {
+                comp_encoding = "jpeg";
+                file_ext = ".jpg";
+                int q = (quality > 0) ? std::clamp(quality, 1, 100)
+                                      : kDefaultJpegQuality;
+                encode_params = {cv::IMWRITE_JPEG_QUALITY, q};
+            }
+            else  // kPng
+            {
+                comp_encoding = "png";
+                file_ext = ".png";
+                int level = (quality > 0) ? std::clamp(quality, 0, 9)
+                                          : kDefaultPngCompression;
+                encode_params = {cv::IMWRITE_PNG_COMPRESSION, level};
+            }
+
+            if (!cv::imencode(file_ext, image, buf, encode_params))
+            {
+                RCLCPP_ERROR(get_logger(), "Failed to encode image as %s",
+                             comp_encoding.c_str());
+                return;
+            }
+
+            auto msg = std::make_unique<sensor_msgs::msg::Image>();
+            msg->header.frame_id = frame_id;
+            msg->header.stamp    = timeStampDoubleToTime(timestamp);
+            msg->encoding        = comp_encoding;
+            // Per ROS convention for compressed data in Image messages:
+            // height=1, width=step=data_size so subscribers can compute
+            // the full buffer as step * height.
+            msg->height          = 1;
+            msg->width           = static_cast<uint32_t>(buf.size());
+            msg->step            = static_cast<uint32_t>(buf.size());
+            msg->data            = std::move(buf);
+            publisher->publish(std::move(msg));
+        }
     }
-    
-} // namespace robot::ai_seg_mask_pointcloud_roi_extractor
+    catch (const cv::Exception &e)
+    {
+        RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
+    }
+    catch (const std::exception &e)
+    {
+        RCLCPP_ERROR(get_logger(), "pubImageCompressed exception: %s", e.what());
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// pubPointCloud (template)
+// ══════════════════════════════════════════════════════════════════════
+
+template <typename PointT>
+void MaskPcRoiExtractor::pubPointCloud(
+    const pcl::PointCloud<PointT>& cloud,
+    const std::string& frame_id,
+    double timestamp,
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher)
+{
+    if (!publisher || cloud.empty()) return;
+
+    auto msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+    pcl::toROSMsg(cloud, *msg);
+    msg->header.frame_id = frame_id;
+    msg->header.stamp = timeStampDoubleToTime(timestamp);
+    publisher->publish(std::move(msg));
+}
+
+// Explicit instantiations for the point types used in this project.
+template void MaskPcRoiExtractor::pubPointCloud<pcl::PointXYZ>(
+    const pcl::PointCloud<pcl::PointXYZ>&, const std::string&, double,
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr);
+
+template void MaskPcRoiExtractor::pubPointCloud<pcl::PointXYZRGB>(
+    const pcl::PointCloud<pcl::PointXYZRGB>&, const std::string&, double,
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr);
+
+template void MaskPcRoiExtractor::pubPointCloud<pcl::PointXYZI>(
+    const pcl::PointCloud<pcl::PointXYZI>&, const std::string&, double,
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr);
+
+// ══════════════════════════════════════════════════════════════════════
+// Helper
+// ══════════════════════════════════════════════════════════════════════
+
+std::string MaskPcRoiExtractor::inferImageEncoding(const cv::Mat& image)
+{
+    int type = image.type();
+
+    if (type == CV_16UC1)  return sensor_msgs::image_encodings::MONO16;
+    if (type == CV_32FC1)  return sensor_msgs::image_encodings::TYPE_32FC1;
+    if (type == CV_8UC3)   return sensor_msgs::image_encodings::BGR8;
+    if (type == CV_8UC1)   return sensor_msgs::image_encodings::MONO8;
+    if (type == CV_8UC4)   return sensor_msgs::image_encodings::BGRA8;
+
+    // Fallback: guess from channel count.
+    return image.channels() > 1 ? sensor_msgs::image_encodings::BGR8
+                                : sensor_msgs::image_encodings::MONO8;
+}
+
+} // namespace robot::mask_pc_roi_extractor

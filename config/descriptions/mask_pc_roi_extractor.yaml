@@ -1,11 +1,11 @@
-ai_seg_mask_pointcloud_roi_extractor_node:
+seg_mask:
   ros__parameters:
     debug:
       description: "调试模式"
       description_en: "Debug mode"
       type: "bool"
       default_value: "false"
-      range: []
+      range: ["true", "false"]
       unit: ""
 
     depth_image_topic:
@@ -20,7 +20,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description: "分割检测信息话题名称"
       description_en: "Segmentation detect topic name"
       type: "string"
-      default_value: "/hobot_dnn_detection"
+      default_value: "/hobot_dnn_seg"
       range: []
       unit: ""
 
@@ -28,7 +28,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description: "类别信息话题名称"
       description_en: "Class info topic name"
       type: "string"
-      default_value: "/hobot_dnn_detection_info"
+      default_value: "/hobot_dnn_seg_info"
       range: []
       unit: ""
 
@@ -36,7 +36,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description: "相机信息话题名称"
       description_en: "Camera info topic name"
       type: "string"
-      default_value: "/StereoNetNode/stereonet_depth/camera_info"
+      default_value: "/StereoNetNode/camera_info"
       range: []
       unit: ""
 
@@ -72,11 +72,27 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       range: []
       unit: ""
 
+    roi_cloud_topic:
+      description: "ROI点云话题名称"
+      description_en: "ROI point cloud topic name"
+      type: "string"
+      default_value: "/roi_pointclouds"
+      range: []
+      unit: ""
+
     confidence_threshold_file_path:
-      description: "类别的置信度文件路径"
-      description_en: "File path of confidence threshold for each class"
+      description: "过滤或者提取类别的置信度文件路径"
+      description_en: "File path of confidence threshold for each class for filtering or extracting"
       type: "string"
       default_value: "model_classes_config.yaml"
+      range: []
+      unit: ""
+
+    confidence_threshold_roi_file_path:
+      description: "感兴趣类别的置信度文件路径"
+      description_en: "File path of confidence threshold for each class for region of interest extraction"
+      type: "string"
+      default_value: "model_classes_roi_config.yaml"
       range: []
       unit: ""
 
@@ -85,15 +101,15 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description_en: "Queue size for message synchronization"
       type: "int"
       default_value: "10"
-      range: []
+      range: [1, 10]
       unit: ""
 
     allow_timestamp_deviation:
-      description: "允许的时间戳偏差"
-      description_en: "Allowable timestamp deviation for synchronization"
+      description: "允许的时间戳偏差（已生效：作为 ApproximateTime 同步的最大时间间隔，避免静默丢帧）"
+      description_en: "Allowable timestamp deviation (now in effect: max interval for ApproximateTime sync, avoids silent frame drop)"
       type: "double"
       default_value: "0.5"
-      range: []
+      range: [0.0, 1.0]
       unit: "sec"
 
     min_depth:
@@ -101,15 +117,15 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description_en: "Minimum depth value for filtering"
       type: "double"
       default_value: "0.0"
-      range: []
+      range: [0.1, 5.0]
       unit: "m"
 
     max_depth:
       description: "最大深度值"
       description_en: "Maximum depth value for filtering"
       type: "double"
-      default_value: "5.0"
-      range: []
+      default_value: "3.0"
+      range: [0.1, 5.0]
       unit: "m"
 
     dilate_iter_num:
@@ -117,7 +133,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description_en: "Number of dilation iterations for the mask of the region of interest"
       type: "int"
       default_value: "1"
-      range: []
+      range: [1, 5]
       unit: ""
 
     camera_width:
@@ -125,7 +141,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description_en: "Camera output image width"
       type: "int"
       default_value: "640"
-      range: []
+      range: [640]
       unit: ""
 
     camera_height:
@@ -133,7 +149,7 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description_en: "Camera output image height"
       type: "int"
       default_value: "352"
-      range: []
+      range: [352]
       unit: ""
 
     log_level:
@@ -149,5 +165,21 @@ ai_seg_mask_pointcloud_roi_extractor_node:
       description_en: "Whether to perform region of interest extraction, true:= region of interest extraction, false:= region of interest filtering"
       type: "bool"
       default_value: "false"
+      range: ["true", "false"]
+      unit: ""
+
+    worker_threads:
+      description: "常驻工作线程数(并行处理帧以提升帧率,上限3以避免与BPU抢核)"
+      description_en: "Number of persistent worker threads (parallel frame processing for higher FPS, capped at 3 to avoid starving BPU cores)"
+      type: "int"
+      default_value: "2"
+      range: []
+      unit: ""
+
+    max_pending_frames:
+      description: "线程池待处理帧上限，超出则丢弃最旧帧（限制延迟与内存）"
+      description_en: "Max queued frames in the thread pool; oldest is dropped when exceeded (bounds latency and memory)"
+      type: "int"
+      default_value: "2"
       range: []
       unit: ""
