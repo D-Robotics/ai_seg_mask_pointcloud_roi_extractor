@@ -24,7 +24,7 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import LoadComposableNodes, ComposableNodeContainer
 from launch_ros.actions import Node
-from launch_ros.descriptions import ComposableNode, ParameterFile
+from launch_ros.descriptions import ComposableNode
 from launch.actions import (
     IncludeLaunchDescription, ExecuteProcess, DeclareLaunchArgument, 
     GroupAction, TimerAction, LogInfo
@@ -55,9 +55,7 @@ def generate_launch_description():
 
     descriptions_dir = os.path.join(parent_dir, 'config', 'descriptions')
     print(f"descriptions_dir = {descriptions_dir}")
-    visual_params_path = os.path.join(parent_dir, 'config', 'params.yaml')
-    print(f"visual_params_path = {visual_params_path}")
-    auto_launch_arguments = AutoLaunchArguments(descriptions_dir, visual_params_path)
+    auto_launch_arguments = AutoLaunchArguments(descriptions_dir)
     declare_arguments = auto_launch_arguments.get_declare_arguments()
     launch_parameters = auto_launch_arguments.get_config_parameters()
 

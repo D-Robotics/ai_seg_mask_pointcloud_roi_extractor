@@ -12,7 +12,6 @@
 import os
 import sys
 import yaml
-from collections import OrderedDict
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument
 from ament_index_python import get_package_share_directory
@@ -26,21 +25,16 @@ sys.path.append(current_dir)
 NODE_NAME = "seg_mask"
 
 class AutoLaunchArguments:
-    def __init__(self, descriptions_dir, visual_params_path):
+    def __init__(self, descriptions_dir):
         """
         Initialize the AutoLaunchArguments class.
 
         :@param descriptions_dir: Directory containing YAML files with parameter descriptions.
-        :@param visual_params_path: Path to the YAML file with visual parameters.
         """
         self.descriptions_dir = descriptions_dir
-        self.visual_params_path = visual_params_path
         self.declare_para = []
         self.config_para = []
 
-        self.params_dict = OrderedDict()
-
-        self.params_dict[NODE_NAME] = {'ros__parameters': {}}
         self._load_all_parameters()
         
     
@@ -105,33 +99,8 @@ class AutoLaunchArguments:
                         param_name: LaunchConfiguration(param_name)
                     })
 
-                    # Add to params_dict and write to params.yaml
-                    if isinstance(param_data, dict) and 'default_value' in param_data:
-                        default_value = param_data['default_value']
-                        param_type = param_data.get('type', '').lower()
-                        
-                        if param_type == 'bool':
-                            value = True if default_value.lower() == 'true' else False
-                        elif param_type == 'int':
-                            value = int(default_value)
-                        elif param_type == 'double' or param_type == 'float':
-                            value = float(default_value)
-                        elif param_type == 'string':
-                            value = default_value
-                        else:
-                            raise ValueError(f"Unknown type {param_type} for parameter {param_name}")   
-                        
-                        self.params_dict[NODE_NAME]['ros__parameters'][param_name] = value
-                
             except Exception as e:
                 print(f"Error processing file {file_path}: {e}")
-            
-        os.makedirs(os.path.dirname(self.visual_params_path), exist_ok=True)
-        
-        with open(self.visual_params_path, 'w', encoding='utf-8') as file:
-            yaml.dump(self.params_dict, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        
-        print(f"Successfully generated params.yaml at {self.visual_params_path}")
     
     def get_declare_arguments(self):
         """
