@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
+#include <cmath>
+#include <limits>
+
 #include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
 
-namespace seg_mask_roi_extractor
+namespace robot::ai_seg_mask_pointcloud_roi_extractor
 {
-    void AISegMaskPointCloudROIExtractor::timeSyncStatus()
+    void MaskPcRoiExtractor::timeSyncStatus()
     {
         rclcpp::Time now = this->get_clock()->now();
 
@@ -37,10 +41,10 @@ namespace seg_mask_roi_extractor
         return;
     }
 
-    bool AISegMaskPointCloudROIExtractor::timeSyncDetect()
+    bool MaskPcRoiExtractor::timeSyncDetect()
     {
         last_receive_time_ = this->now() - rclcpp::Duration(std::chrono::milliseconds(static_cast<long int>(sync_time_delta_ * 1000)));
-        timeSyncTimer_ = create_wall_timer(std::chrono::seconds(1), std::bind(& AISegMaskPointCloudROIExtractor::timeSyncStatus, this));
-        return true;    
+        timeSyncTimer_ = create_wall_timer(std::chrono::seconds(1), std::bind(& MaskPcRoiExtractor::timeSyncStatus, this));
+        return true;
     }
-} 
+}
