@@ -19,22 +19,42 @@ add_compile_options(-Wall -Wextra -Wno-anon-structs)
 # ROS2核心依赖
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
+# 必须在 pcl_conversions 之前 find_package(PCL ...)：pcl_conversions 的 ament 导出会用
+# `if(NOT PCL_FOUND) find_package(PCL QUIET REQUIRED)` 触发【全量默认组件】查找（含
+# visualization → VTK），X5 交叉编译容器未装 VTK 会致命错误。先 find common 让 PCL_FOUND
+# 置位，pcl_conversions 即跳过自身 PCL 查找，彻底绕开 VTK 依赖。
+find_package(PCL REQUIRED COMPONENTS common)
 find_package(pcl_conversions REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(ai_msgs REQUIRED)  # 自定义消息依赖
+find_package(ament_index_cpp REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 # 第三方库依赖
-find_package(PCL REQUIRED COMPONENTS common io filters)
 find_package(OpenCV 4 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+# ========== 自定义消息生成 ==========
+set(msg_files
+  "msg/ROIPointCloud.msg"
+  "msg/ROIPointClouds.msg"
+)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  DEPENDENCIES std_msgs sensor_msgs
+)
+
 set(SOURCE_FILES1 
   src/callback.cpp
   src/publish.cpp
+  src/pipeline.cpp
+  src/depth_continuity.cpp
   src/set_dynamic_para.cpp
   src/time_stamp.cpp
   src/read_param.cpp
@@ -52,6 +72,7 @@ target_include_directories(${PROJECT_NAME}_component
   PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
   SYSTEM  # 系统头文件，抑制第三方库警告
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
@@ -68,6 +89,8 @@ ament_target_dependencies(${PROJECT_NAME}_component
   pcl_conversions
   message_filters
   ai_msgs
+  std_msgs
+  ament_index_cpp
 )
 
 # 链接第三方库
@@ -78,13 +101,34 @@ target_link_libraries(${PROJECT_NAME}_component
   Eigen3::Eigen
 )
 
+# 链接自定义消息
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_NAME}_component ${cpp_typesupport_target})
+
 # ========== 注册组件（核心功能保留） ==========
 rclcpp_components_register_nodes(${PROJECT_NAME}_component
   PLUGIN "seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor"
-#   EXECUTABLE ${PROJECT_NAME}
+  EXECUTABLE ${PROJECT_NAME}
 )
 
-ament_export_dependencies(rosidl_default_runtime)
+# 独立 executable 入口
+add_executable(${PROJECT_NAME}_node src/main.cpp)
+target_include_directories(${PROJECT_NAME}_node PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
+  SYSTEM
+  ${PCL_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+)
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_component)
+
+# 注意：不导出 PCL。ament_export_dependencies(PCL) 会在下游触发裸 find_package(PCL)（无
+# COMPONENTS → PCLConfig 默认全量组件含 visualization→VTK），X5 交叉编译容器未装 VTK 致
+# 下游（如 semantic_map）CMake 致命错误。mask 组件自身已链接 PCL::common，下游仅消费
+# mask 的自定义消息（不暴露 PCL 头），无需传递 PCL。OpenCV 同理不传递。
+ament_export_dependencies(ament_cmake rclcpp ai_msgs)
 
 # ========== 安装规则 ==========
 # install(TARGETS 
@@ -94,9 +138,10 @@ ament_export_dependencies(rosidl_default_runtime)
 #   RUNTIME DESTINATION bin
 # )
 
-install(TARGETS 
-  ${PROJECT_NAME}_component
-  DESTINATION lib/
+install(TARGETS ${PROJECT_NAME}_component ${PROJECT_NAME}_node
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/
