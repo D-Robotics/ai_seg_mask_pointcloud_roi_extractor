@@ -267,3 +267,64 @@ ros2 param set /seg_mask debug true
 ## 14. 联系方式
 
 如有问题或建议，请联系项目维护人员。
+
+## 15. 重构版新增功能
+
+本版本将重构后继版（mask_pc_roi_extractor）的全部功能并回本仓库，保留原有文件结构与命名。相对旧版的新增功能如下。
+
+### 15.1 逐实例 ROI 点云输出（semantic_map 联动）
+
+- 新增自定义消息 `msg/ROIPointCloud.msg` / `msg/ROIPointClouds.msg`；
+- 新话题 `/roi_pointclouds`（参数 `roi_cloud_topic`）发布逐实例 ROI 点云（含实例 id 与 confidence），供下游 semantic_map 节点构建语义地图；
+- 新增 ROI 可视化叠加话题 `/roi_visual_depth_seg`（参数 `roi_visual_topic`，bgr8 深度+分割叠加图；置为空字符串可禁用该发布者）。
+
+### 15.2 双类别白名单
+
+- `config/model_classes_config.yaml`：深度过滤管线类别置信度阈值；
+- `config/model_classes_roi_config.yaml`：ROI 提取管线类别置信度阈值；
+- 解析阶段将两份配置合并为通用阈值（冲突取较低置信度），之后各管线再分别用专属阈值二次过滤。
+
+### 15.3 按类腐蚀与实例级深度门控
+
+- 全局：21×21 椭圆核腐蚀类别 ID 分割掩码，去除边界边缘伪影；
+- 按类附加腐蚀：`erode_extra_class_names`（默认 `chair`）+ `erode_extra_iter_num`（默认 2），仅作用于 ROI 点云/语义地图链路，不影响障碍物管线；
+- 实例级自适应百分位深度门控 `instance_depth_gate_tau`（默认 0.3 m，0=禁用）：保留带 = [p10 − m, p90 + m]，m 随实例自身深度跨度扩大，既保留大物体的远端边缘，又能整段切除背景渗透形成的径向尾状噪声；
+- 深度连续性检查 `depth_continuity_check`（默认关闭，调试开关）：比较像素深度与同类 3×3 邻域中位数，过滤物体边界处深度突变的背景像素。
+
+### 15.4 多线程帧处理
+
+- 常驻线程池（`worker_threads`，1–3，默认 2），同步回调投递任务后立即返回，executor 持续接收帧；
+- 待处理帧数超过 `max_pending_frames`（默认 2）时丢弃最旧帧；
+- 过滤深度输出与 ROI 点云提取两个阶段在工作线程上并行执行。
+
+### 15.5 性能优化
+
+- `toCvShare` 零拷贝共享深度图消息缓冲；
+- MatPool 复用大图像缓冲，消除每帧堆分配；
+- 掩码单遍生成、投影倒数乘法、点云 `reserve`；
+- 编译优化：LTO、aarch64 上 `-mcpu=cortex-a55`（NEON 自动向量化）。
+
+### 15.6 独立可执行与调试支持
+
+- 除组件库外构建独立可执行文件 `${PROJECT_NAME}_node`（`src/main.cpp`）；
+- launch 支持 `use_gdb:=True`（GDB 包裹启动节点，崩溃自动打印 backtrace）；
+- `debug` 模式输出详细日志 + 每 100 帧平均单帧耗时；
+- 恢复时间同步看门狗（time_sync_detect）：无同步数据或帧间隔停滞时告警；停滞阈值 `sync_time_delta_` 由旧版 0.5 s 调整为 5.0 s，以适配低帧率深度源（如 0.43 Hz 的 stereonet_depth_filtered）。
+
+### 15.7 新增参数一览
+
+| 参数 | 类型 | 默认值 | 描述 |
+|------|------|-------|------|
+| roi_cloud_topic | string | "/roi_pointclouds" | ROI 点云发布话题 |
+| roi_visual_topic | string | "/roi_visual_depth_seg" | ROI 可视化叠加话题（空字符串禁用） |
+| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI 管线类别置信度配置文件 |
+| erode_iter_num_roi | int | 1 | ROI 掩码腐蚀迭代次数 |
+| erode_extra_class_names | string | "chair" | 需附加腐蚀的类名列表（逗号分隔） |
+| erode_extra_iter_num | int | 2 | 附加腐蚀迭代次数 |
+| depth_continuity_check | bool | false | 深度连续性检查（调试开关，默认关闭） |
+| max_depth_diff | double | 0.3 | 连续性检查允许的邻域中位数最大深度差（米） |
+| instance_depth_gate_tau | double | 0.3 | 实例级百分位深度门控最小裕量（米，0=禁用） |
+| worker_threads | int | 2 | 常驻工作线程数（上限 3） |
+| max_pending_frames | int | 2 | 线程池待处理帧上限，超出丢弃最旧帧 |
+
+> 完整参数说明见 `config/descriptions/ai_seg_mask_pointcloud_roi_extractor.yaml`。
