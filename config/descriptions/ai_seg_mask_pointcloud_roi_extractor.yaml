@@ -88,11 +88,35 @@ seg_mask:
       range: []
       unit: ""
 
+    roi_cloud_topic:
+      description: "ROI点云话题名称"
+      description_en: "ROI point cloud topic name"
+      type: "string"
+      default_value: "/roi_pointclouds"
+      range: []
+      unit: ""
+
+    roi_visual_topic:
+      description: "ROI分割叠加深度渲染图话题名称(空字符串表示不发布)"
+      description_en: "ROI segment overlay depth render image topic name (empty string disables)"
+      type: "string"
+      default_value: "/roi_visual_depth_seg"
+      range: []
+      unit: ""
+
     confidence_threshold_file_path:
       description: "类别的置信度文件路径"
       description_en: "File path of confidence threshold for each class"
       type: "string"
       default_value: "model_classes_config.yaml"
+      range: []
+      unit: ""
+
+    confidence_threshold_roi_file_path:
+      description: "感兴趣类别的置信度文件路径"
+      description_en: "File path of confidence threshold for each class for region of interest extraction"
+      type: "string"
+      default_value: "model_classes_roi_config.yaml"
       range: []
       unit: ""
 
@@ -136,6 +160,54 @@ seg_mask:
       range: []
       unit: ""
 
+    erode_iter_num_roi:
+      description: "ROI 点云提取前对语义分割 mask 的腐蚀迭代次数(0=禁用)。保持低值:该 mask 写回后进入深度过滤/导航障碍链路,≥3 曾导致 costmap 障碍闪烁、导航卡顿(BUG-20260914);按类收紧请用 erode_extra_class_names"
+      description_en: "Number of erosion iterations for semantic segmentation mask before ROI point cloud extraction (0=disabled). KEEP LOW: written back into the depth-filter/obstacle pipeline; >=3 caused costmap flicker and navigation jank (BUG-20260914). Use erode_extra_class_names for per-class tightening"
+      type: "int"
+      default_value: "1"
+      range: [0, 5]
+      unit: ""
+
+    erode_extra_class_names:
+      description: "额外腐蚀类别名单(逗号分隔,如 'chair,couch'):仅对这些类别的分割 mask 像素追加腐蚀(只影响 ROI 点云/语义地图,不触碰障碍链路)。只允许列入不在深度过滤配置(model_classes_config.yaml,当前仅 person)中的类别。用字符串而非数组:descriptions 解析工具只支持 bool/int/double/string"
+      description_en: "Comma-separated class names receiving EXTRA erosion on the segmentation mask only (affects ROI pointcloud/semantic map; obstacle pipeline untouched). Only list classes absent from the depth-filter config (model_classes_config.yaml, currently person-only). Plain string (not array): descriptions tooling only supports bool/int/double/string"
+      type: "string"
+      default_value: "chair"
+      range: []
+      unit: ""
+
+    erode_extra_iter_num:
+      description: "额外腐蚀迭代次数(作用于 erode_extra_class_names 中的类别,0=禁用)。默认 2:椅子边界总收缩量等于实测有效的全局腐蚀 3"
+      description_en: "Extra erosion iterations applied to erode_extra_class_names classes (0=disabled). Default 2 matches the empirically tuned global erosion of 3 for chair boundary shrink"
+      type: "int"
+      default_value: "2"
+      range: [0, 5]
+      unit: ""
+
+    depth_continuity_check:
+      description: "开启 ROI 点云深度连续性检查(3×3 同类邻域深度中位数,过滤孤立深度飞点)。默认关:实测对单帧整条生成的相干拖尾无效,孤立飞点已由 instance_depth_gate_tau 百分位门控覆盖,开启徒增 2~9ms/帧;保留作调试开关。只作用于 ROI/语义地图链路"
+      description_en: "Enable depth continuity check (3x3 same-class neighborhood depth median) for ROI point cloud. Default OFF: field-tested ineffective against coherent single-frame tail streaks, and isolated flying pixels are already covered by the instance_depth_gate_tau percentile gate — keeping it ON only adds 2~9 ms/frame. Retained as a debug switch. ROI/semantic-map chain only"
+      type: "bool"
+      default_value: "false"
+      range: []
+      unit: ""
+
+    max_depth_diff:
+      description: "深度连续性检查的最大允许深度差(米)"
+      description_en: "Maximum allowed depth difference from neighbor median for continuity check (meters)"
+      type: "double"
+      default_value: "0.3"
+      range: [0.05, 1.0]
+      unit: "m"
+
+    instance_depth_gate_tau:
+      description: "实例级自适应百分位深度门控的最小边距(米,0=关闭):保留带=[p10-m, p90+m],m=max(该值, p90-p10 深度跨度)。带宽随物体自身深度跨度缩放——大物体远端边缘不误切,而'整条同时生成'的径向拖尾(背景深度整条拖出,内部自洽、局部 3x3 连续性检查看不见,实测)被整条切除。只作用于 ROI/语义地图链路"
+      description_en: "Minimum margin (meters, 0=disabled) of the per-instance ADAPTIVE percentile depth gate: keep-band = [p10-m, p90+m], m = max(tau, p90-p10 span). Band scales with the object's own depth extent — large objects keep their far edges, while coherent radial tail streaks (background bleed generated in one shot, internally depth-consistent so the local 3x3 check cannot see them, user-tested) are cut entirely. ROI/semantic-map chain only"
+      type: "double"
+      default_value: "0.3"
+      range: [0.0, 2.0]
+      unit: "m"
+
     camera_width:
       description: "相机输出图片宽度"
       description_en: "Camera output image width"
@@ -165,5 +237,21 @@ seg_mask:
       description_en: "Whether to perform region of interest extraction, true:= region of interest extraction, false:= region of interest filtering"
       type: "bool"
       default_value: "false"
+      range: []
+      unit: ""
+
+    worker_threads:
+      description: "常驻工作线程数(并行处理帧以提升帧率,上限3以避免与BPU抢核)"
+      description_en: "Number of persistent worker threads (parallel frame processing for higher FPS, capped at 3 to avoid starving BPU cores)"
+      type: "int"
+      default_value: "2"
+      range: []
+      unit: ""
+
+    max_pending_frames:
+      description: "线程池待处理帧上限，超出则丢弃最旧帧（限制延迟与内存）"
+      description_en: "Max queued frames in the thread pool; oldest is dropped when exceeded (bounds latency and memory)"
+      type: "int"
+      default_value: "2"
       range: []
       unit: ""

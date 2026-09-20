@@ -264,3 +264,64 @@ This project is open source under the Apache License 2.0.
 ## 14. Contact Information
 
 For questions or suggestions, please contact the project maintainers.
+
+## 15. New Features (Merged from the Refactored Version)
+
+This release merges all functionality of the refactored successor (mask_pc_roi_extractor) back into this repository while keeping the original file layout and naming. New features relative to the previous version:
+
+### 15.1 Per-Instance ROI Pointcloud Output (semantic_map integration)
+
+- New custom messages `msg/ROIPointCloud.msg` / `msg/ROIPointClouds.msg`;
+- New topic `/roi_pointclouds` (parameter `roi_cloud_topic`) publishes per-instance ROI pointclouds (with instance id and confidence), consumed by the downstream semantic_map node for semantic mapping;
+- New ROI visualization overlay topic `/roi_visual_depth_seg` (parameter `roi_visual_topic`, bgr8 depth + segmentation overlay; set to an empty string to disable the publisher).
+
+### 15.2 Dual Class Whitelists
+
+- `config/model_classes_config.yaml`: class confidence thresholds for the depth-filtering pipeline;
+- `config/model_classes_roi_config.yaml`: class confidence thresholds for the ROI-extraction pipeline;
+- The parsing stage merges both configs into a common threshold map (lower confidence wins on conflict); each pipeline then applies its own thresholds as a second filter.
+
+### 15.3 Per-Class Erosion and Instance-Level Depth Gating
+
+- Global: a 21×21 elliptical kernel erodes the class-ID segmentation mask to remove boundary edge artifacts;
+- Per-class extra erosion: `erode_extra_class_names` (default `chair`) + `erode_extra_iter_num` (default 2), affecting only the ROI pointcloud / semantic-map chain, not the obstacle pipeline;
+- Instance-level adaptive percentile depth gate `instance_depth_gate_tau` (default 0.3 m, 0 = disabled): keep-band = [p10 − m, p90 + m] where m grows with the instance's own depth span — large objects keep their far edges while coherent radial tail streaks from background bleed are cut entirely;
+- Depth continuity check `depth_continuity_check` (default OFF, debug switch): compares pixel depth against the same-class 3×3 neighborhood median and filters out background pixels at depth discontinuities.
+
+### 15.4 Multithreaded Frame Processing
+
+- Persistent thread pool (`worker_threads`, 1–3, default 2); the sync callback enqueues a job and returns immediately so the executor keeps receiving frames;
+- When pending frames exceed `max_pending_frames` (default 2), the oldest frame is dropped;
+- The filtered-depth stage and the ROI-extraction stage run in parallel on worker threads.
+
+### 15.5 Performance Optimizations
+
+- `toCvShare` zero-copy sharing of the depth message buffer;
+- MatPool reuse of large image buffers, eliminating per-frame heap allocations;
+- Single-pass mask generation, reciprocal-multiplication projection, pointcloud `reserve`;
+- Build optimizations: LTO, `-mcpu=cortex-a55` (NEON auto-vectorization) on aarch64.
+
+### 15.6 Standalone Executable and Debug Support
+
+- Builds a standalone executable `${PROJECT_NAME}_node` (`src/main.cpp`) in addition to the component library;
+- launch supports `use_gdb:=True` (runs the node under GDB, prints a backtrace automatically on crash);
+- `debug` mode emits verbose logs + average per-frame timing every 100 frames;
+- Restored time-sync watchdog (time_sync_detect): warns on missing sync data or stalled frame intervals; the stall threshold `sync_time_delta_` was raised from 0.5 s to 5.0 s to accommodate low-rate depth sources (e.g. 0.43 Hz stereonet_depth_filtered).
+
+### 15.7 New Parameters Overview
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| roi_cloud_topic | string | "/roi_pointclouds" | ROI pointcloud publish topic |
+| roi_visual_topic | string | "/roi_visual_depth_seg" | ROI visualization overlay topic (empty string disables) |
+| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI pipeline class-confidence config file |
+| erode_iter_num_roi | int | 1 | ROI mask erosion iterations |
+| erode_extra_class_names | string | "chair" | Comma-separated class names receiving extra erosion |
+| erode_extra_iter_num | int | 2 | Extra erosion iterations |
+| depth_continuity_check | bool | false | Depth continuity check (debug switch, default off) |
+| max_depth_diff | double | 0.3 | Max allowed depth difference from neighborhood median (meters) |
+| instance_depth_gate_tau | double | 0.3 | Instance-level percentile depth gate minimum margin (meters, 0 = disabled) |
+| worker_threads | int | 2 | Persistent worker threads (max 3) |
+| max_pending_frames | int | 2 | Thread-pool pending frame cap; oldest frame dropped when exceeded |
+
+> Full parameter documentation: `config/descriptions/ai_seg_mask_pointcloud_roi_extractor.yaml`.
