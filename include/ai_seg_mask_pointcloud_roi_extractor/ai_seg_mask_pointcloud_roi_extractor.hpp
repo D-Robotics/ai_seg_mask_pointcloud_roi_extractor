@@ -128,6 +128,12 @@ namespace seg_mask_roi_extractor
             bool checkTopicListQuiet(const std::vector<std::string> &topic_list);
 
             /**
+            * Check if all topics that need to be subscribed to exist
+            * @return bool All Exist → true, otherwise → false
+            */
+            bool checkRequiredTopic();
+
+            /**
              * @brief Get camera intrinsic parameters
              * @return Shared pointer to camera info, or nullptr if not available
              */

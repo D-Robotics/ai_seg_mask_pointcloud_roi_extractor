@@ -29,7 +29,7 @@ namespace seg_mask_roi_extractor
         }
         std::chrono::high_resolution_clock::time_point start, end;
         start = std::chrono::high_resolution_clock::now();
-        if (params_->debug)
+        if (params_->time_debug && params_->debug)
         {
             rclcpp::Time now = this->get_clock()->now();
             rclcpp::Time depth_time(depth_msg->header.stamp);
@@ -133,6 +133,7 @@ namespace seg_mask_roi_extractor
         // callback thread, so the worker threads read immutable values instead of racing
         // with cameraInfoCallback / onParameterChange on the executor thread.
         job->cfg.debug = params_->debug;
+        job->cfg.time_debug = params_->time_debug;
         job->cfg.cam_w = static_cast<int>(params_->camera_width);
         job->cfg.cam_h = static_cast<int>(params_->camera_height);
         job->cfg.min_depth = static_cast<float>(params_->min_depth);
@@ -150,7 +151,8 @@ namespace seg_mask_roi_extractor
         // Task 1: filtered depth/mask/cloud publish (operates on its own depth clone)
         auto task_filter = [this, job, fp, fmp, fcp]()
         {
-            ScopedTimer t(timing_filter_.acc_us, timing_filter_.count, job->cfg.debug);
+            ScopedTimer t(timing_filter_.acc_us, timing_filter_.count,
+                          job->cfg.debug && job->cfg.time_debug);
             // If seg mask is available, further restrict mask_img to depth-specific
             // classes (parsing stage keeps all merged classes).  This is the depth
             // pipeline's own per-pixel class filter.
@@ -203,7 +205,8 @@ namespace seg_mask_roi_extractor
         // Task 2: per-ROI point cloud extraction with conf and id (read-only depth)
         auto task_roi = [this, job, rcp]()
         {
-            ScopedTimer t(timing_roi_.acc_us, timing_roi_.count, job->cfg.debug);
+            ScopedTimer t(timing_roi_.acc_us, timing_roi_.count,
+                          job->cfg.debug && job->cfg.time_debug);
             this->processROIPointClouds(job->depth_cv->image, job->seg_mask_class_id,
                                         job->boxes, job->timestamp, job->frame_id, rcp,
                                         job->cfg.cam_w, job->cfg.cam_h,
@@ -246,7 +249,7 @@ namespace seg_mask_roi_extractor
                     duration.count() / 1000.0);
 
         // Periodic timing report for worker tasks (every N frames, debug only).
-        if (params_->debug && ++frame_counter_ >= timing_report_interval_)
+        if (params_->debug && params_->time_debug && ++frame_counter_ >= timing_report_interval_)
         {
             RCLCPP_INFO(get_logger(),
                         "[timing] last %d frames avg: filter=%.3f ms (%d samples), roi=%.3f ms (%d samples)",

@@ -87,6 +87,8 @@ struct AISegMaskPointCloudROIExtractorPara
     using Ptr = std::shared_ptr<AISegMaskPointCloudROIExtractorPara>;
 
     bool        debug{false};                           /**< Enable debug mode */
+    bool        time_debug{false};                      /**< Enable time debug mode */
+    bool        topic_check{false};                     /**< Enable topic check */
     std::string depth_image_topic{""};                /**< Depth image topic name */
     std::string detect_info_topic{""};                /**< Detection info topic name */
     std::string class_info_topic{""};                 /**< Class info topic name */
@@ -186,6 +188,8 @@ struct AISegMaskPointCloudROIExtractorPara
     void declare_parameters(rclcpp::Node* node)
     {
         declare_parameter_if_not_declared(node, "debug", rclcpp::ParameterValue(false));
+        declare_parameter_if_not_declared(node, "time_debug", rclcpp::ParameterValue(false));
+        declare_parameter_if_not_declared(node, "topic_check", rclcpp::ParameterValue(false));
         declare_parameter_if_not_declared(node, "depth_image_topic", rclcpp::ParameterValue("image_raw"));
         declare_parameter_if_not_declared(node, "detect_info_topic", rclcpp::ParameterValue("hobot_dnn_detection"));
         declare_parameter_if_not_declared(node, "class_info_topic", rclcpp::ParameterValue("hobot_dnn_detection_info"));
@@ -220,6 +224,8 @@ struct AISegMaskPointCloudROIExtractorPara
     void get_parameters(rclcpp::Node* node)
     {
         get_parameter_if_declared(node, "debug", this->debug);
+        get_parameter_if_declared(node, "time_debug", this->time_debug);
+        get_parameter_if_declared(node, "topic_check", this->topic_check);
         get_parameter_if_declared(node, "depth_image_topic", this->depth_image_topic);
         get_parameter_if_declared(node, "detect_info_topic", this->detect_info_topic);
         get_parameter_if_declared(node, "class_info_topic", this->class_info_topic);

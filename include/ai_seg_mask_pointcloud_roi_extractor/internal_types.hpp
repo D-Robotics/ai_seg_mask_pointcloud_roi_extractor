@@ -345,6 +345,7 @@ struct FrameJob
     struct
     {
         bool  debug{false};
+        bool  time_debug{false};
         int   cam_w{0};
         int   cam_h{0};
         float min_depth{0.0f};

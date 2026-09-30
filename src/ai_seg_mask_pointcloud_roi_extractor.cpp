@@ -240,4 +240,28 @@ namespace seg_mask_roi_extractor
         return true;
     }
 
+    bool AISegMaskPointCloudROIExtractor::checkRequiredTopic()
+    {
+        std::vector<std::string> required_topics = {params_->camera_info_topic,
+                                                    params_->class_info_topic,
+                                                    params_->depth_image_topic,
+                                                    params_->detect_info_topic};
+
+        int loop_count = 3;
+        do {
+            loop_count--;
+            if (checkTopicList(required_topics))
+            {
+                RCLCPP_INFO(get_logger(), "Detection completed: All topics exist");
+                return true;
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        } while (loop_count > 0);
+
+        RCLCPP_WARN(get_logger(), "Three consecutive topic detection failures, Check Method : [ros2 topic info topic-name --once]");
+
+        return false;
+    }
+
 }  // namespace seg_mask_roi_extractor
