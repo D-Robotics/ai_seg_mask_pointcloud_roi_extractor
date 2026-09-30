@@ -303,10 +303,8 @@ ros2 param set /seg_mask debug true
 - MatPool 复用大图像缓冲，消除每帧堆分配；
 - 掩码单遍生成、投影倒数乘法、点云 `reserve`。
 
-### 15.6 独立可执行与调试支持
+### 15.6 调试支持
 
-- 除组件库外构建独立可执行文件 `${PROJECT_NAME}_node`（`src/main.cpp`）；
-- launch 支持 `use_gdb:=True`（GDB 包裹启动节点，崩溃自动打印 backtrace）；
 - `debug` 模式输出详细日志 + 每 100 帧平均单帧耗时；
 - 恢复时间同步看门狗（time_sync_detect）：无同步数据或帧间隔停滞时告警；停滞阈值 `sync_time_delta_` 由旧版 0.5 s 调整为 5.0 s，以适配低帧率深度源（如 0.43 Hz 的 stereonet_depth_filtered）。
 

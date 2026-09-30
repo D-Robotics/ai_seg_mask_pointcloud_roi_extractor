@@ -300,10 +300,8 @@ This release merges all functionality of the refactored successor (mask_pc_roi_e
 - MatPool reuse of large image buffers, eliminating per-frame heap allocations;
 - Single-pass mask generation, reciprocal-multiplication projection, pointcloud `reserve`.
 
-### 15.6 Standalone Executable and Debug Support
+### 15.6 Debug Support
 
-- Builds a standalone executable `${PROJECT_NAME}_node` (`src/main.cpp`) in addition to the component library;
-- launch supports `use_gdb:=True` (runs the node under GDB, prints a backtrace automatically on crash);
 - `debug` mode emits verbose logs + average per-frame timing every 100 frames;
 - Restored time-sync watchdog (time_sync_detect): warns on missing sync data or stalled frame intervals; the stall threshold `sync_time_delta_` was raised from 0.5 s to 5.0 s to accommodate low-rate depth sources (e.g. 0.43 Hz stereonet_depth_filtered).
 
