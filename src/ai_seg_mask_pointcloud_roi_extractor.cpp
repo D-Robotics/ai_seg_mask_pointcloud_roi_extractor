@@ -13,48 +13,32 @@
 // limitations under the License.
 
 
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/opencv.hpp>
-#include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
-
 #include "ai_seg_mask_pointcloud_roi_extractor/ai_seg_mask_pointcloud_roi_extractor.hpp"
 
 namespace seg_mask_roi_extractor
 {
 
     AISegMaskPointCloudROIExtractor::AISegMaskPointCloudROIExtractor(const rclcpp::NodeOptions &options)
-        : rclcpp::Node("depth_mask_extractor_node", options)
+        : rclcpp::Node("seg_mask", options)
     {
-        RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor Constructed Start");
+        RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor constructing...");
 
+        // ---- init params ----
+        params_ = std::make_shared<AISegMaskPointCloudROIExtractorPara>();
+        if (!initParam())
         {
-            std::string node_start_time_str = timeStampTimeToString(this->now());
-            RCLCPP_INFO(this->get_logger(), "\n Node Start Time is: %s \n", node_start_time_str.c_str());
-        }
-        
-        // Create parameters object
-        if (!params_)
-        {
-            params_ = std::make_shared<AISegMaskPointCloudROIExtractorPara>();
+            RCLCPP_ERROR(get_logger(), "initParam() failed!");
+            return;
         }
 
-        // Defer heavy initialization (topic checks, subscriber setup) to avoid
-        // blocking the component container's node loading. Use a one-shot timer
-        // so initParam() runs once the executor is spinning.
-        init_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(0),
-            [this]() {
-                init_timer_->cancel();
-                if (!initParam())
-                {
-                    RCLCPP_ERROR(get_logger(), "Init Failed !");
-                }
-            });
-
-        RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor Constructed End");
+        // ---- thread pool ----
+        size_t n = static_cast<size_t>(params_->worker_threads);
+        if (n < 1) n = 1;
+        if (n > 3) n = 3;
+        thread_pool_ = std::make_shared<ThreadPool>(n);
+        RCLCPP_INFO(get_logger(), "Worker thread pool started with %zu threads", n);
+        RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor ready");
     }
-
 
     bool AISegMaskPointCloudROIExtractor::initParam()
     {
@@ -65,9 +49,6 @@ namespace seg_mask_roi_extractor
 
         // Get parameters using the parameter management utility
         params_->get_parameters(this);
-        
-        // Print parameters using the parameter's print method
-        params_->print(get_logger());
 
         if (!parserYamlParam())
         {
@@ -79,11 +60,6 @@ namespace seg_mask_roi_extractor
         {
             RCLCPP_ERROR(get_logger(), "Dynamic para callback failed !");
             return false;
-        }
-
-        if (!checkRequiredTopic())
-        {
-            RCLCPP_ERROR(get_logger(), "Topic detection exception !");
         }
 
         initializePublisher();
@@ -99,33 +75,67 @@ namespace seg_mask_roi_extractor
     {
         RCLCPP_INFO(get_logger(), "Initialize Subscriber Start");
 
+        {
+            std::vector<std::string> required_topics = {params_->camera_info_topic,
+                                                        params_->class_info_topic,
+                                                        params_->depth_image_topic,
+                                                        params_->detect_info_topic};
+            constexpr int    kMaxRetries = 50;     // 50 × 100ms = 5 s max wait
+            constexpr auto   kRetryDelay = std::chrono::milliseconds(100);
+            bool all_found = false;
+            for (int attempt = 0; attempt < kMaxRetries; ++attempt)
+            {
+                if (checkTopicListQuiet(required_topics))
+                {
+                    all_found = true;
+                    RCLCPP_INFO(get_logger(), "All required topics found (attempt %d)", attempt + 1);
+                    break;
+                }
+                rclcpp::sleep_for(kRetryDelay);
+            }
+            if (!all_found)
+            {
+                // Log which topics are still missing for easier debugging.
+                for (const auto& t : required_topics)
+                {
+                    if (!checkSingleTopic(t))
+                    {
+                        RCLCPP_ERROR(get_logger(), "Topic not found after %d retries: %s",
+                                    kMaxRetries, t.c_str());
+                    }
+                }
+            }
+        }
+
         // Create camera info subscriber
         camera_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-            params_->camera_info_topic, 
-            rclcpp::QoS(DEFAULT_QOS_DEPTH), 
-            std::bind(&AISegMaskPointCloudROIExtractor::cameraInfoCallback, this, std::placeholders::_1));
+            params_->camera_info_topic,
+            rclcpp::QoS(DEFAULT_QOS_DEPTH),
+            std::bind(&AISegMaskPointCloudROIExtractor::cameraInfoCallback, 
+                    this, 
+                    std::placeholders::_1));
 
         // Create class info subscriber
         class_info_sub_ = create_subscription<ai_msgs::msg::PerceptionInfo>(
-                        params_->class_info_topic, 
-                        rclcpp::QoS(DEFAULT_QOS_DEPTH), 
-                        std::bind(&AISegMaskPointCloudROIExtractor::classInfoCallback, this, std::placeholders::_1));
+                        params_->class_info_topic,
+                        rclcpp::QoS(DEFAULT_QOS_DEPTH),
+                        std::bind(&AISegMaskPointCloudROIExtractor::classInfoCallback,
+                                this,
+                                std::placeholders::_1));
 
-        // Create message filter subscribers for time synchronization
-        RCLCPP_INFO(get_logger(), "Time synchronizer initialized with absolute time alignment");
+        // ---- message_filters sync (pure rclcpp::Node* — no LifecycleNode crash) ----
+        RCLCPP_INFO(get_logger(), "Initializing time synchronizer (ApproximateTime)");
         depth_sub_.subscribe(this, params_->depth_image_topic);
         detect_info_sub_.subscribe(this, params_->detect_info_topic);
-        
-        // Create time synchronizer using absolute time alignment
-        // If allow_timestamp_deviation is true, an approximate time synchronizer could be used
-        // But according to requirements, we use absolute time alignment (TimeSynchronizer)
-        sync_.reset(new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(params_->queue_size), 
-                                                                depth_sub_, 
-                                                                detect_info_sub_ ));
-        sync_->registerCallback(std::bind(&AISegMaskPointCloudROIExtractor::parserDepthMaskCallback, 
-                                        this, 
-                                        std::placeholders::_1, 
+        sync_.reset(new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(params_->queue_size),
+                                                                depth_sub_,
+                                                                detect_info_sub_));
+        sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(params_->allow_timestamp_deviation));
+        sync_->registerCallback(std::bind(&AISegMaskPointCloudROIExtractor::parserDepthMaskCallback,
+                                        this,
+                                        std::placeholders::_1,
                                         std::placeholders::_2));
+        RCLCPP_INFO(get_logger(), "Time synchronizer initialized (ApproximateTime)");
 
         timeSyncDetect();
 
@@ -149,6 +159,20 @@ namespace seg_mask_roi_extractor
         filtered_depth_mask_pub_ = create_publisher<sensor_msgs::msg::Image>(
             params_->filtered_mask_topic, 
             rclcpp::QoS(DEFAULT_QOS_PUB));
+
+        roi_cloud_pub_ = create_publisher<::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds>(
+            params_->roi_cloud_topic, 1);
+
+        // ROI visual overlay image (bgr8 depth + segment). Only created when a
+        // topic name is configured (empty string disables this publisher).
+        if (!params_->roi_visual_topic.empty())
+        {
+            roi_visual_pub_ = create_publisher<sensor_msgs::msg::Image>(
+                params_->roi_visual_topic,
+                rclcpp::QoS(DEFAULT_QOS_PUB));
+            RCLCPP_INFO(get_logger(), "ROI visual overlay publisher created on %s",
+                        params_->roi_visual_topic.c_str());
+        }
 
         RCLCPP_INFO(get_logger(), "Initialize publisher end");
         return;
@@ -204,7 +228,19 @@ namespace seg_mask_roi_extractor
         return all_exists;
     }
 
-    bool AISegMaskPointCloudROIExtractor::checkRequiredTopic() 
+
+    bool AISegMaskPointCloudROIExtractor::checkTopicListQuiet(const std::vector<std::string> &topic_list)
+    {
+        if (topic_list.empty()) return false;
+        const auto all_topics = this->get_node_graph_interface()->get_topic_names_and_types();
+        for (const auto &topic : topic_list)
+        {
+            if (all_topics.find(topic) == all_topics.end()) return false;
+        }
+        return true;
+    }
+
+    bool AISegMaskPointCloudROIExtractor::checkRequiredTopic()
     {
         std::vector<std::string> required_topics = {params_->camera_info_topic,
                                                     params_->class_info_topic,
@@ -218,7 +254,7 @@ namespace seg_mask_roi_extractor
             {
                 RCLCPP_INFO(get_logger(), "Detection completed: All topics exist");
                 return true;
-            } 
+            }
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
         } while (loop_count > 0);
