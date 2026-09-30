@@ -30,9 +30,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 # 第三方库依赖
-# 组件仅 common（上游为 common io filters）：本包只用 pcl/point_cloud.h、
-# pcl/point_types.h，不引 pcl_io/pcl_filters，少链两个运行库。
-find_package(PCL REQUIRED COMPONENTS common)
+find_package(PCL REQUIRED COMPONENTS common io filters)
 find_package(OpenCV 4 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -106,28 +104,11 @@ target_link_libraries(${PROJECT_NAME}_component ${cpp_typesupport_target})
 # ========== 注册组件（核心功能保留） ==========
 rclcpp_components_register_nodes(${PROJECT_NAME}_component
   PLUGIN "seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor"
-  EXECUTABLE ${PROJECT_NAME}
+#   EXECUTABLE ${PROJECT_NAME}
 )
 
-# 独立 executable 入口
-add_executable(${PROJECT_NAME}_node src/main.cpp)
-target_include_directories(${PROJECT_NAME}_node PRIVATE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
-  SYSTEM
-  ${PCL_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIRS}
-)
-target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_component)
+ament_export_dependencies(rosidl_default_runtime)
 
-# 注意：不导出 PCL/OpenCV。下游（如 semantic_map）仅消费本包的自定义消息，
-# 不接触 PCL/OpenCV 头，导出只会放大下游 configure 开销（上游同样不导出，
-# 见下方注释行）。组件库自身已链接 PCL::common。
-ament_export_dependencies(ament_cmake rclcpp ai_msgs)
-
-# ========== 安装规则 ==========
 # install(TARGETS 
 #   ${PROJECT_NAME}_component
 #   ARCHIVE DESTINATION lib
@@ -135,10 +116,9 @@ ament_export_dependencies(ament_cmake rclcpp ai_msgs)
 #   RUNTIME DESTINATION bin
 # )
 
-install(TARGETS ${PROJECT_NAME}_component ${PROJECT_NAME}_node
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
+install(TARGETS 
+  ${PROJECT_NAME}_component
+  DESTINATION lib/
 )
 
 install(DIRECTORY include/
