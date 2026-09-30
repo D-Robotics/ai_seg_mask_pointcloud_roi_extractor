@@ -23,10 +23,6 @@ find_package(std_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
-# 必须在 pcl_conversions 之前 find_package(PCL ...)：pcl_conversions 的 ament 导出会用
-# `if(NOT PCL_FOUND) find_package(PCL QUIET REQUIRED)` 触发【全量默认组件】查找（含
-# visualization → VTK），X5 交叉编译容器未装 VTK 会致命错误。先 find common 让 PCL_FOUND
-# 置位，pcl_conversions 即跳过自身 PCL 查找，彻底绕开 VTK 依赖。
 find_package(PCL REQUIRED COMPONENTS common)
 find_package(pcl_conversions REQUIRED)
 find_package(message_filters REQUIRED)
