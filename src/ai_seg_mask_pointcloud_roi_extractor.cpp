@@ -265,3 +265,6 @@ namespace seg_mask_roi_extractor
     }
 
 }  // namespace seg_mask_roi_extractor
+
+// Register the component with class_loader
+RCLCPP_COMPONENTS_REGISTER_NODE(seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor)
