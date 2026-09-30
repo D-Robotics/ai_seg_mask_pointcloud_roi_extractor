@@ -104,11 +104,25 @@ target_link_libraries(${PROJECT_NAME}_component ${cpp_typesupport_target})
 # ========== 注册组件（核心功能保留） ==========
 rclcpp_components_register_nodes(${PROJECT_NAME}_component
   PLUGIN "seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor"
-#   EXECUTABLE ${PROJECT_NAME}
+  EXECUTABLE ${PROJECT_NAME}
 )
+
+# 独立 executable 入口
+add_executable(${PROJECT_NAME}_node src/main.cpp)
+target_include_directories(${PROJECT_NAME}_node PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
+  SYSTEM
+  ${PCL_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+)
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_component)
 
 ament_export_dependencies(rosidl_default_runtime)
 
+# ========== 安装规则 ==========
 # install(TARGETS 
 #   ${PROJECT_NAME}_component
 #   ARCHIVE DESTINATION lib
@@ -116,9 +130,10 @@ ament_export_dependencies(rosidl_default_runtime)
 #   RUNTIME DESTINATION bin
 # )
 
-install(TARGETS 
-  ${PROJECT_NAME}_component
-  DESTINATION lib/
+install(TARGETS ${PROJECT_NAME}_component ${PROJECT_NAME}_node
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/
