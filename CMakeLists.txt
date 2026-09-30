@@ -23,7 +23,6 @@ find_package(std_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common)
 find_package(pcl_conversions REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(ai_msgs REQUIRED)  # 自定义消息依赖
@@ -31,6 +30,9 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 # 第三方库依赖
+# 组件仅 common（上游为 common io filters）：本包只用 pcl/point_cloud.h、
+# pcl/point_types.h，不引 pcl_io/pcl_filters，少链两个运行库。
+find_package(PCL REQUIRED COMPONENTS common)
 find_package(OpenCV 4 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -120,10 +122,9 @@ target_include_directories(${PROJECT_NAME}_node PRIVATE
 )
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_component)
 
-# 注意：不导出 PCL。ament_export_dependencies(PCL) 会在下游触发裸 find_package(PCL)（无
-# COMPONENTS → PCLConfig 默认全量组件含 visualization→VTK），X5 交叉编译容器未装 VTK 致
-# 下游（如 semantic_map）CMake 致命错误。mask 组件自身已链接 PCL::common，下游仅消费
-# mask 的自定义消息（不暴露 PCL 头），无需传递 PCL。OpenCV 同理不传递。
+# 注意：不导出 PCL/OpenCV。下游（如 semantic_map）仅消费本包的自定义消息，
+# 不接触 PCL/OpenCV 头，导出只会放大下游 configure 开销（上游同样不导出，
+# 见下方注释行）。组件库自身已链接 PCL::common。
 ament_export_dependencies(ament_cmake rclcpp ai_msgs)
 
 # ========== 安装规则 ==========
