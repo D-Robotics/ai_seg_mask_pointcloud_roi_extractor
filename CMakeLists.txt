@@ -109,6 +109,7 @@ rclcpp_components_register_nodes(${PROJECT_NAME}_component
 
 ament_export_dependencies(rosidl_default_runtime)
 
+# ========== 安装规则 ==========
 # install(TARGETS 
 #   ${PROJECT_NAME}_component
 #   ARCHIVE DESTINATION lib
