@@ -120,14 +120,6 @@ namespace seg_mask_roi_extractor
             bool checkTopicList(const std::vector<std::string> &topic_list);
 
             /**
-             * Check if all topics exist (silent — no per-topic error log).
-             * Used for polling retries to avoid log spam.
-             * @param topic_list Topic List Vector
-             * @return bool All Exist → true, otherwise → false
-             */
-            bool checkTopicListQuiet(const std::vector<std::string> &topic_list);
-
-            /**
             * Check if all topics that need to be subscribed to exist
             * @return bool All Exist → true, otherwise → false
             */

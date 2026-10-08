@@ -259,6 +259,36 @@ struct AISegMaskPointCloudROIExtractorPara
         get_parameter_if_declared(node, "worker_threads", this->worker_threads);
         get_parameter_if_declared(node, "max_pending_frames", this->max_pending_frames);
     }
+
+    /**
+     * @brief Print all configuration parameters to the given logger
+     * @param logger Logger to use for printing
+     */
+    void print(const rclcpp::Logger &logger) const
+    {
+        RCLCPP_INFO(logger, "DepthMaskExtractor-Config-Param:");
+        RCLCPP_INFO(logger, "  debug: %s", this->debug ? "true" : "false");
+        RCLCPP_INFO(logger, "  time_debug: %s", this->time_debug ? "true" : "false");
+        RCLCPP_INFO(logger, "  topic_check: %s", this->topic_check ? "true" : "false");
+        RCLCPP_INFO(logger, "  depth_image_topic: %s", this->depth_image_topic.c_str());
+        RCLCPP_INFO(logger, "  detect_info_topic: %s", this->detect_info_topic.c_str());
+        RCLCPP_INFO(logger, "  class_info_topic: %s", this->class_info_topic.c_str());
+        RCLCPP_INFO(logger, "  camera_info_topic: %s", this->camera_info_topic.c_str());
+        RCLCPP_INFO(logger, "  color_image_topic: %s", this->color_image_topic.c_str());
+        RCLCPP_INFO(logger, "  filtered_mask_topic: %s", this->filtered_mask_topic.c_str());
+        RCLCPP_INFO(logger, "  filtered_depth_topic: %s", this->filtered_depth_topic.c_str());
+        RCLCPP_INFO(logger, "  filtered_cloud_topic: %s", this->filtered_cloud_topic.c_str());
+        RCLCPP_INFO(logger, "  confidence_threshold_file_path: %s", this->confidence_threshold_file_path.c_str());
+        RCLCPP_INFO(logger, "  queue_size: %d", this->queue_size);
+        RCLCPP_INFO(logger, "  allow_timestamp_deviation: %.2f", this->allow_timestamp_deviation);
+        RCLCPP_INFO(logger, "  min_depth: %.2f", this->min_depth);
+        RCLCPP_INFO(logger, "  max_depth: %.2f", this->max_depth);
+        RCLCPP_INFO(logger, "  dilate_iter_num: %d", this->dilate_iter_num);
+        RCLCPP_INFO(logger, "  camera_width: %d", this->camera_width);
+        RCLCPP_INFO(logger, "  camera_height: %d", this->camera_height);
+        RCLCPP_INFO(logger, "  log_level: %s", this->log_level.c_str());
+        RCLCPP_INFO(logger, "  use_extractor: %s", this->use_extractor ? "true" : "false");
+    }
 };
 
 }  // namespace seg_mask_roi_extractor
