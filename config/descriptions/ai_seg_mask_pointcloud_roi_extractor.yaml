@@ -249,9 +249,9 @@ seg_mask:
       unit: ""
 
     max_pending_frames:
-      description: "线程池待处理帧上限，超出则丢弃最旧帧（限制延迟与内存）"
-      description_en: "Max queued frames in the thread pool; oldest is dropped when exceeded (bounds latency and memory)"
+      description: "线程池待处理帧上限，超出则丢弃最旧帧（限制延迟与内存）；需 ≥ 单帧入队任务数 3（filter/roi/visual），否则双 worker 忙时 drop-oldest 系统性丢弃 filter 任务"
+      description_en: "Max queued frames in the thread pool; oldest is dropped when exceeded (bounds latency and memory). Must be >= 3 tasks enqueued per frame (filter/roi/visual), otherwise drop-oldest systematically discards the filter task when both workers are busy"
       type: "int"
-      default_value: "2"
+      default_value: "4"
       range: []
       unit: ""
