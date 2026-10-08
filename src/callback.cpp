@@ -95,23 +95,27 @@ namespace seg_mask_roi_extractor
         //    mask_img / seg_mask_class_id are borrowed from the reusable Mat pool.
         cv::Mat mask_img;
         cv::Mat seg_mask_class_id;
+        cv::Mat seg_mask_class_id_roi;
         std::vector<BoxInfo> filtered_all_box_info;
         if (!parserDetectInfo(detect_info_msg,
                             mask_img,
                             filtered_all_box_info,
-                            seg_mask_class_id))
+                            seg_mask_class_id,
+                            seg_mask_class_id_roi))
         {
             RCLCPP_ERROR(get_logger(), "Detect info parsing failed!");
             return;
         }
 
-        // 2.5 Erode the class-ID segmentation mask to shrink object boundaries
-        //     inward.  A 21x21 elliptical kernel removes ~10 px of edge
-        //     artifacts in a single pass.
-        if (!seg_mask_class_id.empty())
+        // 2.5 Erode the ROI class-ID mask to shrink object boundaries inward.
+        //     A 21x21 elliptical kernel removes ~10 px of edge artifacts in a
+        //     single pass.  ROI/semantic-map chain ONLY — the depth-filter
+        //     chain consumes the pristine seg_mask_class_id (upstream keeps
+        //     this chain erosion-free).
+        if (!seg_mask_class_id_roi.empty())
         {
             cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(21, 21));
-            cv::erode(seg_mask_class_id, seg_mask_class_id, kernel, cv::Point(-1, -1), 1);
+            cv::erode(seg_mask_class_id_roi, seg_mask_class_id_roi, kernel, cv::Point(-1, -1), 1);
         }
 
         // ==================== Dispatch to thread pool (non-blocking) ====================
@@ -123,6 +127,7 @@ namespace seg_mask_roi_extractor
         job->depth_cv = depth_cv;
         job->mask_img = std::move(mask_img);
         job->seg_mask_class_id = std::move(seg_mask_class_id);
+        job->seg_mask_class_id_roi = std::move(seg_mask_class_id_roi);
         job->boxes = std::move(filtered_all_box_info);
         job->frame_id = frame_id;
         job->timestamp = time_stamp;
@@ -207,7 +212,7 @@ namespace seg_mask_roi_extractor
         {
             ScopedTimer t(timing_roi_.acc_us, timing_roi_.count,
                           job->cfg.debug && job->cfg.time_debug);
-            this->processROIPointClouds(job->depth_cv->image, job->seg_mask_class_id,
+            this->processROIPointClouds(job->depth_cv->image, job->seg_mask_class_id_roi,
                                         job->boxes, job->timestamp, job->frame_id, rcp,
                                         job->cfg.cam_w, job->cfg.cam_h,
                                         job->cfg.min_depth, job->cfg.max_depth,
@@ -220,7 +225,7 @@ namespace seg_mask_roi_extractor
         auto task_visual = [this, job, rvp]()
         {
             if (!rvp) return;
-            this->processROIVisual(job->depth_cv->image, job->seg_mask_class_id,
+            this->processROIVisual(job->depth_cv->image, job->seg_mask_class_id_roi,
                                    job->boxes, job->timestamp, job->frame_id, rvp,
                                    job->cfg.cam_w, job->cfg.cam_h,
                                    job->cfg.min_depth, job->cfg.max_depth,
@@ -616,7 +621,8 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
     const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
     cv::Mat &mask_img,
     std::vector<BoxInfo>& filtered_all_box_info,
-    cv::Mat& seg_mask_class_id)
+    cv::Mat& seg_mask_class_id,
+    cv::Mat& seg_mask_class_id_roi)
 {
     filtered_all_box_info.clear();
     const int img_h = static_cast<int>(params_->camera_height);
@@ -662,37 +668,38 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
         mask_img = mask_pool_.acquire(img_h, img_w, CV_8UC1);
         cv::bitwise_and(mask_valid, detect_valid_area_mask, mask_img);
 
-        // ── 4. Erode mask_img → write back to seg_mask_class_id ──
-        // Shrink the bbox-constrained mask boundary to remove unreliable
-        // edge pixels before ROI point cloud extraction.  Eroding in-place
-        // on mask_img (1 iteration = 1 pixel) has negligible effect on
-        // task_filter's subsequent dilate/erode.
+        // ── 4. ROI-mask conditioning (ROI/semantic-map chain ONLY) ──
+        // Build the ROI copy of the class-ID mask and erode its boundary to
+        // remove unreliable edge pixels before ROI point cloud extraction.
+        // mask_img and the pristine seg_mask_class_id stay untouched, so the
+        // depth-filter chain keeps the upstream behaviour (dilate only, no
+        // erosion anywhere).
+        seg_mask_class_id_roi = mask_pool_.acquire(img_h, img_w, CV_8UC1);
+        seg_mask_class_id.copyTo(seg_mask_class_id_roi);
         const int erode_n = params_->erode_iter_num_roi;
         if (erode_n > 0)
         {
             cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
-            cv::erode(mask_img, mask_img, kernel, cv::Point(-1, -1), erode_n);
 
-            // Write back: keep seg_mask_class_id only where erode output is 255
+            // Trim the ROI mask to the detected instance pixels (bbox ∩ seg mask)
             for (int v = 0; v < img_h; ++v)
             {
                 const uchar* mrow = mask_img.ptr<uchar>(v);
-                uchar* srow = seg_mask_class_id.ptr<uchar>(v);
+                uchar* srow = seg_mask_class_id_roi.ptr<uchar>(v);
                 for (int u = 0; u < img_w; ++u)
                 {
                     if (mrow[u] != 255) srow[u] = 0;
                 }
             }
+
+            cv::erode(seg_mask_class_id_roi, seg_mask_class_id_roi, kernel,
+                      cv::Point(-1, -1), erode_n);
         }
 
-        // ── 4b. Per-class EXTRA erosion on seg_mask_class_id ─────────
+        // ── 4b. Per-class EXTRA erosion on the ROI class-ID mask ─────
         // Tightens only the configured classes (default: chair) to fight
-        // semantic-map blob inflation.  mask_img is NOT touched, so the
-        // depth-filter/obstacle pipeline is unaffected — safe as long as the
-        // listed classes are absent from the depth-filter config
-        // (model_classes_config.yaml, currently person-only).  Raising the
-        // GLOBAL erode_iter_num_roi instead caused navigation jank
-        // (BUG-20260914); this is the class-differentiated replacement.
+        // semantic-map blob inflation.  Operates on the ROI copy only —
+        // the depth-filter/obstacle pipeline is unaffected.
         const int extra_n = params_->erode_extra_iter_num;
         if (extra_n > 0 && !params_->erode_extra_class_names.empty())
         {
@@ -724,7 +731,7 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
                 for (int v = 0; v < img_h; ++v)
                 {
                     const uchar* srow = sub.ptr<uchar>(v);
-                    uchar* grow = seg_mask_class_id.ptr<uchar>(v);
+                    uchar* grow = seg_mask_class_id_roi.ptr<uchar>(v);
                     for (int u = 0; u < img_w; ++u)
                     {
                         if (grow[u] == cid && srow[u] == 0) grow[u] = 0;

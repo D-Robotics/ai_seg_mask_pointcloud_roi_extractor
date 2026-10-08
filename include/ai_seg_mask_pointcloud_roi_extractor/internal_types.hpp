@@ -328,7 +328,8 @@ struct FrameJob
 {
     cv_bridge::CvImageConstPtr depth_cv;           /**< Shared read-only depth (keeps ROS msg buffer alive) */
     cv::Mat                    mask_img;           /**< Pooled CV_8UC1 binary mask, owned by job */
-    cv::Mat                    seg_mask_class_id;  /**< Pooled CV_8UC1 class-ID mask, owned by job */
+    cv::Mat                    seg_mask_class_id;  /**< Pooled CV_8UC1 pristine class-ID mask (depth-filter class-restrict), owned by job */
+    cv::Mat                    seg_mask_class_id_roi; /**< Pooled CV_8UC1 eroded class-ID mask (ROI/semantic-map chain only), owned by job */
     std::vector<BoxInfo>       boxes;              /**< Filtered detection boxes */
     std::string                frame_id;           /**< Coordinate frame ID */
     double                     timestamp{0.0};     /**< Frame timestamp (seconds) */
@@ -360,6 +361,7 @@ struct FrameJob
         {
             mask_pool->release(mask_img);
             mask_pool->release(seg_mask_class_id);
+            mask_pool->release(seg_mask_class_id_roi);
         }
     }
 };

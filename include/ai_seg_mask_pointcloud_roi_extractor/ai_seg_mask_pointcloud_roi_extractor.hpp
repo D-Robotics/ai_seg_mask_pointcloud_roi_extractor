@@ -374,13 +374,15 @@ namespace seg_mask_roi_extractor
              * @param detect_info_msg Shared pointer to the detection info message
              * @param mask_img Output pooled cv::Mat for the binary intersection mask
              * @param filtered_all_box_info Output vector of filtered box infos (name, id, conf, rect)
-             * @param seg_mask_class_id Output pooled full-resolution class-ID mask (CV_8UC1, pixel = class_id + 1, 0 = background)
+             * @param seg_mask_class_id Output pooled PRISTINE full-resolution class-ID mask (CV_8UC1, pixel = class_id + 1, 0 = background); consumed by the depth-filter class-restrict (upstream-identical, no erosion)
+             * @param seg_mask_class_id_roi Output pooled ERODED class-ID mask for the ROI/semantic-map chain only (trim + erode_iter_num_roi + erode_extra + 21x21 global)
              * @return True if parsing is successful, false otherwise
              */
             bool parserDetectInfo(const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
                             cv::Mat &mask_img,
                             std::vector<BoxInfo>& filtered_all_box_info,
-                            cv::Mat& seg_mask_class_id);
+                            cv::Mat& seg_mask_class_id,
+                            cv::Mat& seg_mask_class_id_roi);
 
             /**
              * @brief Camera info callback function

@@ -161,7 +161,7 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | camera_height | int | 352 | 相机图像高度，必须与实际输入图像一致 | 像素 |
 | log_level | string | "info" | 日志级别，可选值：debug、info、warn、error、critical | - |
 | confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI 提取管线类别置信度阈值文件路径 | - |
-| erode_iter_num_roi | int | 1 | ROI 点云提取前对分割掩码的腐蚀迭代次数（0=禁用；保持低值，该掩码会写回障碍管线） | - |
+| erode_iter_num_roi | int | 1 | ROI 点云提取前对 ROI 专用语义掩码的腐蚀迭代次数（0=禁用；仅作用于 ROI/语义地图链路，深度过滤链路不受影响） | - |
 | erode_extra_class_names | string | "chair" | 需要附加腐蚀的类别名单（逗号分隔，仅作用于 ROI/语义地图链路） | - |
 | erode_extra_iter_num | int | 2 | erode_extra_class_names 类别的附加腐蚀迭代次数（0=禁用） | - |
 | depth_continuity_check | bool | false | ROI 点云深度连续性检查（调试开关，默认关闭） | - |

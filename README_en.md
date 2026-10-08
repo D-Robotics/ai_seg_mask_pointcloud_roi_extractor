@@ -158,7 +158,7 @@ The parsing stage merges both class configs into a common threshold map (lower c
 | camera_height | int | 352 | Camera image height, must match actual input image | pixels |
 | log_level | string | "info" | Log level, available options: debug, info, warn, error, critical | - |
 | confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI-extraction pipeline class-confidence threshold file path | - |
-| erode_iter_num_roi | int | 1 | Erosion iterations on the segmentation mask before ROI pointcloud extraction (0=disabled; keep low — the mask is written back into the obstacle pipeline) | - |
+| erode_iter_num_roi | int | 1 | Erosion iterations on the ROI-dedicated segmentation mask before ROI pointcloud extraction (0=disabled; ROI/semantic-map chain only, the depth-filter chain is unaffected) | - |
 | erode_extra_class_names | string | "chair" | Comma-separated class names receiving extra erosion (ROI/semantic-map chain only) | - |
 | erode_extra_iter_num | int | 2 | Extra erosion iterations for erode_extra_class_names (0=disabled) | - |
 | depth_continuity_check | bool | false | ROI pointcloud depth continuity check (debug switch, off by default) | - |

@@ -161,16 +161,16 @@ seg_mask:
       unit: ""
 
     erode_iter_num_roi:
-      description: "ROI 点云提取前对语义分割 mask 的腐蚀迭代次数(0=禁用)。保持低值:该 mask 写回后进入深度过滤/导航障碍链路,≥3 曾导致 costmap 障碍闪烁、导航卡顿(BUG-20260914);按类收紧请用 erode_extra_class_names。调大:仅限边界深度飞刺明显时,且须同步观察 costmap 稳定性;调小:目标在障碍与 ROI 两条链路同时变小残缺时"
-      description_en: "Number of erosion iterations for semantic segmentation mask before ROI point cloud extraction (0=disabled). KEEP LOW: written back into the depth-filter/obstacle pipeline; >=3 caused costmap flicker and navigation jank (BUG-20260914). Use erode_extra_class_names for per-class tightening. Increase: only when boundary depth streaks are obvious, and watch costmap stability; decrease: when targets shrink/break up on BOTH the obstacle and ROI chains"
+      description: "ROI 点云提取前对 ROI 专用语义 mask 的腐蚀迭代次数(0=禁用)。只作用于 ROI/语义地图链路——深度过滤链路消费未腐蚀的原始 mask、与上游一致(2026-10-08 链路拆分;拆分前该 mask 与障碍链路共享,≥3 曾致 costmap 障碍闪烁、导航卡顿 BUG-20260914)。按类收紧请用 erode_extra_class_names。调大:边界深度飞刺明显、语义地图轮廓外扩时;调小:ROI 点云/语义地图物体变小残缺时"
+      description_en: "Erosion iterations on the ROI-dedicated segmentation mask before ROI point cloud extraction (0=disabled). ROI/semantic-map chain ONLY — the depth-filter chain consumes the pristine mask, upstream-identical and erosion-free (chain split 2026-10-08; pre-split the mask was shared with the obstacle pipeline and >=3 caused costmap flicker/navigation jank, BUG-20260914). Use erode_extra_class_names for per-class tightening. Increase: obvious boundary depth streaks / inflated map outlines; decrease: ROI cloud / map objects shrink or break up"
       type: "int"
       default_value: "1"
       range: [0, 5]
       unit: ""
 
     erode_extra_class_names:
-      description: "额外腐蚀类别名单(逗号分隔,如 'chair,couch'):仅对这些类别的分割 mask 像素追加腐蚀(只影响 ROI 点云/语义地图,不触碰障碍链路)。只允许列入不在深度过滤配置(model_classes_config.yaml,当前仅 person)中的类别。用字符串而非数组:descriptions 解析工具只支持 bool/int/double/string"
-      description_en: "Comma-separated class names receiving EXTRA erosion on the segmentation mask only (affects ROI pointcloud/semantic map; obstacle pipeline untouched). Only list classes absent from the depth-filter config (model_classes_config.yaml, currently person-only). Plain string (not array): descriptions tooling only supports bool/int/double/string"
+      description: "额外腐蚀类别名单(逗号分隔,如 'chair,couch'):仅对这些类别的 ROI 专用语义 mask 像素追加腐蚀(只影响 ROI 点云/语义地图,不触碰深度过滤链路)。模型类别表中不存在的类名会被跳过并告警一次。用字符串而非数组:descriptions 解析工具只支持 bool/int/double/string"
+      description_en: "Comma-separated class names receiving EXTRA erosion on the ROI-dedicated segmentation mask only (affects ROI pointcloud/semantic map; depth-filter chain untouched). Class names missing from the model class list are skipped with a one-shot warning. Plain string (not array): descriptions tooling only supports bool/int/double/string"
       type: "string"
       default_value: "chair"
       range: []
