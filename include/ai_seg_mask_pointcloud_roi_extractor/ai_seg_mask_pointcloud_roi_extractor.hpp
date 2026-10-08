@@ -504,10 +504,7 @@ namespace seg_mask_roi_extractor
             float DEPTH_SCALE = 0.001f;
 
             double last_time_ = -std::numeric_limits<double>::infinity();  ///< Record the time of the previous frame data
-            // Stall threshold in seconds. Upstream default was 0.5 (assumed a high-rate
-            // depth stream); raised to 5.0 because low-rate sources (e.g. 0.43 Hz
-            // stereonet_depth_filtered on X5) would otherwise trigger WARN every frame.
-            double sync_time_delta_{5.0}; ///< Time synchronization time interval
+            double sync_time_delta_{0.5}; ///< Time synchronization time interval
             rclcpp::TimerBase::SharedPtr timeSyncTimer_{nullptr};
             rclcpp::Time last_receive_time_;
 

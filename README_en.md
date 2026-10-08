@@ -303,7 +303,6 @@ This release merges all functionality of the refactored successor (mask_pc_roi_e
 ### 15.6 Debug Support
 
 - `debug` mode emits verbose logs + average per-frame timing every 100 frames;
-- Restored time-sync watchdog (time_sync_detect): warns on missing sync data or stalled frame intervals; the stall threshold `sync_time_delta_` was raised from 0.5 s to 5.0 s to accommodate low-rate depth sources (e.g. 0.43 Hz stereonet_depth_filtered).
 
 ### 15.7 New Parameters Overview
 

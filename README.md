@@ -306,7 +306,6 @@ ros2 param set /seg_mask debug true
 ### 15.6 调试支持
 
 - `debug` 模式输出详细日志 + 每 100 帧平均单帧耗时；
-- 恢复时间同步看门狗（time_sync_detect）：无同步数据或帧间隔停滞时告警；停滞阈值 `sync_time_delta_` 由旧版 0.5 s 调整为 5.0 s，以适配低帧率深度源（如 0.43 Hz 的 stereonet_depth_filtered）。
 
 ### 15.7 新增参数一览
 
