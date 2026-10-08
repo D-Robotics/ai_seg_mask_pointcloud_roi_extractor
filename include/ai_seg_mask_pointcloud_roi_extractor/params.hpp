@@ -116,6 +116,7 @@ struct AISegMaskPointCloudROIExtractorPara
     int         camera_height{352};                   /**< Camera output image height (pixels) */
     std::string log_level{"info"};                    /**< Log level (debug/info/warn/error) */
     bool        use_extractor{false};                 /**< true=extract ROI, false=filter ROI */
+    bool        enable_roi_extraction{true};          /**< Master switch for the ROI/semantic-map chain: when false, the ROI point-cloud and overlay-render tasks are not enqueued (depth-filter chain unaffected). bring_up derives it from run_semantic_map. */
     int         worker_threads{3};                    /**< Persistent worker thread count (max 3) */
     // 4 >= 3 tasks enqueued per frame (filter/roi/visual): with cap 2, drop-oldest
     // discarded the filter task whenever both workers were busy at the enqueue
@@ -157,6 +158,7 @@ struct AISegMaskPointCloudROIExtractorPara
         int camera_height,
         std::string log_level,
         bool use_extractor,
+        bool enable_roi_extraction,
         int worker_threads,
         int max_pending_frames
     ) :
@@ -184,6 +186,7 @@ struct AISegMaskPointCloudROIExtractorPara
         camera_height(camera_height),
         log_level(log_level),
         use_extractor(use_extractor),
+        enable_roi_extraction(enable_roi_extraction),
         worker_threads(worker_threads),
         max_pending_frames(max_pending_frames) {}
 
@@ -201,8 +204,8 @@ struct AISegMaskPointCloudROIExtractorPara
         declare_parameter_if_not_declared(node, "filtered_mask_topic", rclcpp::ParameterValue("filtered_mask"));
         declare_parameter_if_not_declared(node, "filtered_depth_topic", rclcpp::ParameterValue("filtered_depth_img"));
         declare_parameter_if_not_declared(node, "filtered_cloud_topic", rclcpp::ParameterValue("filtered_depth_cloud"));
-        declare_parameter_if_not_declared(node, "roi_cloud_topic", rclcpp::ParameterValue("roi_pointclouds"));
-        declare_parameter_if_not_declared(node, "roi_visual_topic", rclcpp::ParameterValue(""));
+        declare_parameter_if_not_declared(node, "roi_cloud_topic", rclcpp::ParameterValue("roi/pointclouds"));
+        declare_parameter_if_not_declared(node, "roi_visual_topic", rclcpp::ParameterValue("roi/visual_depth_seg"));
         declare_parameter_if_not_declared(node, "confidence_threshold_file_path", rclcpp::ParameterValue("model_classes_config.yaml"));
         declare_parameter_if_not_declared(node, "confidence_threshold_roi_file_path", rclcpp::ParameterValue("model_classes_roi_config.yaml"));
         declare_parameter_if_not_declared(node, "queue_size", rclcpp::ParameterValue(10));
@@ -220,6 +223,7 @@ struct AISegMaskPointCloudROIExtractorPara
         declare_parameter_if_not_declared(node, "camera_height", rclcpp::ParameterValue(352));
         declare_parameter_if_not_declared(node, "log_level", rclcpp::ParameterValue("info"));
         declare_parameter_if_not_declared(node, "use_extractor", rclcpp::ParameterValue(false));
+        declare_parameter_if_not_declared(node, "enable_roi_extraction", rclcpp::ParameterValue(true));
         declare_parameter_if_not_declared(node, "worker_threads", rclcpp::ParameterValue(3));
         declare_parameter_if_not_declared(node, "max_pending_frames", rclcpp::ParameterValue(4));
     }
@@ -256,6 +260,7 @@ struct AISegMaskPointCloudROIExtractorPara
         get_parameter_if_declared(node, "camera_height", this->camera_height);
         get_parameter_if_declared(node, "log_level", this->log_level);
         get_parameter_if_declared(node, "use_extractor", this->use_extractor);
+        get_parameter_if_declared(node, "enable_roi_extraction", this->enable_roi_extraction);
         get_parameter_if_declared(node, "worker_threads", this->worker_threads);
         get_parameter_if_declared(node, "max_pending_frames", this->max_pending_frames);
     }

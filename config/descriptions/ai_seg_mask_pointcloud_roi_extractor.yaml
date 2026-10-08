@@ -89,18 +89,18 @@ seg_mask:
       unit: ""
 
     roi_cloud_topic:
-      description: "ROI点云话题名称"
-      description_en: "ROI point cloud topic name"
+      description: "ROI点云话题名称（逐实例点云，仅语义建图链路使用，由 semantic_map 订阅）"
+      description_en: "ROI point cloud topic name (per-instance clouds; used only by the semantic mapping chain, subscribed by semantic_map)"
       type: "string"
-      default_value: "/roi_pointclouds"
+      default_value: "/roi/pointclouds"
       range: []
       unit: ""
 
     roi_visual_topic:
-      description: "ROI分割叠加深度渲染图话题名称(空字符串表示不发布)"
-      description_en: "ROI segment overlay depth render image topic name (empty string disables)"
+      description: "ROI分割叠加深度渲染图话题名称（仅语义建图可视化链路使用：bgr8 经 jpeg 编码后进 web 通道 2；空字符串表示不发布）"
+      description_en: "ROI segment overlay depth render image topic name (semantic-map visualization chain only: bgr8 jpeg-encoded to web channel 2; empty string disables)"
       type: "string"
-      default_value: "/roi_visual_depth_seg"
+      default_value: "/roi/visual_depth_seg"
       range: []
       unit: ""
 
@@ -137,32 +137,32 @@ seg_mask:
       unit: "sec"
 
     min_depth:
-      description: "最小深度值"
-      description_en: "Minimum depth value for filtering"
+      description: "最小深度值(小于此值的点被过滤)。调大:滤除镜头近处飞点/机身自遮挡;调小:需感知贴近视野的目标时"
+      description_en: "Minimum depth value for filtering (points below are filtered out). Increase: remove near-field flying pixels / self-occlusion; decrease: to perceive targets very close to the camera"
       type: "double"
       default_value: "0.0"
       range: []
       unit: "m"
 
     max_depth:
-      description: "最大深度值"
-      description_en: "Maximum depth value for filtering"
+      description: "最大深度值(大于此值的点被过滤)。调大:需感知更远目标(远处噪声随之增多);调小:远处背景干扰 ROI/障碍点云时"
+      description_en: "Maximum depth value for filtering (points above are filtered out). Increase: to perceive farther targets (more far-field noise); decrease: when distant background interferes with the ROI/obstacle cloud"
       type: "double"
       default_value: "5.0"
       range: []
       unit: "m"
 
     dilate_iter_num:
-      description: "感兴趣区域mask的膨胀迭代次数"
-      description_en: "Number of dilation iterations for the mask of the region of interest"
+      description: "感兴趣区域mask的膨胀迭代次数(每次约外扩1像素)。调大:分割mask偏小、目标边缘被截断时;调小:mask偏大、背景被卷进ROI时"
+      description_en: "Number of dilation iterations for the mask of the region of interest (~1 px outward per iteration). Increase: mask under-segments and target edges are cut off; decrease: mask over-segments and background bleeds into the ROI"
       type: "int"
       default_value: "1"
       range: []
       unit: ""
 
     erode_iter_num_roi:
-      description: "ROI 点云提取前对语义分割 mask 的腐蚀迭代次数(0=禁用)。保持低值:该 mask 写回后进入深度过滤/导航障碍链路,≥3 曾导致 costmap 障碍闪烁、导航卡顿(BUG-20260914);按类收紧请用 erode_extra_class_names"
-      description_en: "Number of erosion iterations for semantic segmentation mask before ROI point cloud extraction (0=disabled). KEEP LOW: written back into the depth-filter/obstacle pipeline; >=3 caused costmap flicker and navigation jank (BUG-20260914). Use erode_extra_class_names for per-class tightening"
+      description: "ROI 点云提取前对语义分割 mask 的腐蚀迭代次数(0=禁用)。保持低值:该 mask 写回后进入深度过滤/导航障碍链路,≥3 曾导致 costmap 障碍闪烁、导航卡顿(BUG-20260914);按类收紧请用 erode_extra_class_names。调大:仅限边界深度飞刺明显时,且须同步观察 costmap 稳定性;调小:目标在障碍与 ROI 两条链路同时变小残缺时"
+      description_en: "Number of erosion iterations for semantic segmentation mask before ROI point cloud extraction (0=disabled). KEEP LOW: written back into the depth-filter/obstacle pipeline; >=3 caused costmap flicker and navigation jank (BUG-20260914). Use erode_extra_class_names for per-class tightening. Increase: only when boundary depth streaks are obvious, and watch costmap stability; decrease: when targets shrink/break up on BOTH the obstacle and ROI chains"
       type: "int"
       default_value: "1"
       range: [0, 5]
@@ -177,8 +177,8 @@ seg_mask:
       unit: ""
 
     erode_extra_iter_num:
-      description: "额外腐蚀迭代次数(作用于 erode_extra_class_names 中的类别,0=禁用)。默认 2:椅子边界总收缩量等于实测有效的全局腐蚀 3"
-      description_en: "Extra erosion iterations applied to erode_extra_class_names classes (0=disabled). Default 2 matches the empirically tuned global erosion of 3 for chair boundary shrink"
+      description: "额外腐蚀迭代次数(作用于 erode_extra_class_names 中的类别,0=禁用,每次迭代边界收缩约1像素)。调大(+1):该类在语义地图/ROI点云中仍比实物大、轮廓外扩或渗入背景时;调小(-1):点云/地图中该类变小残缺(如椅腿丢失)时;0=关闭该类额外腐蚀。默认 2:椅子边界总收缩量等于实测有效的全局腐蚀 3"
+      description_en: "Extra erosion iterations applied to erode_extra_class_names classes (0=disabled; ~1 px boundary shrink per iteration). Increase (+1): the class still renders larger than reality in the semantic map / ROI cloud (inflated outline bleeding into background). Decrease (-1): the class shrinks or breaks up in the map (e.g. chair legs disappear). 0 disables the extra erosion. Default 2 matches the empirically tuned global erosion of 3 for chair boundary shrink"
       type: "int"
       default_value: "2"
       range: [0, 5]
@@ -193,16 +193,16 @@ seg_mask:
       unit: ""
 
     max_depth_diff:
-      description: "深度连续性检查的最大允许深度差(米)"
-      description_en: "Maximum allowed depth difference from neighbor median for continuity check (meters)"
+      description: "深度连续性检查的最大允许深度差(米)。仅 depth_continuity_check=true 时生效。调大:物体表面深度起伏大、有效点被误删时;调小:边界飞点仍残留时"
+      description_en: "Maximum allowed depth difference from neighbor median for continuity check (meters). Only effective when depth_continuity_check=true. Increase: valid points wrongly removed on surfaces with large depth variation; decrease: boundary flying pixels persist"
       type: "double"
       default_value: "0.3"
       range: [0.05, 1.0]
       unit: "m"
 
     instance_depth_gate_tau:
-      description: "实例级自适应百分位深度门控的最小边距(米,0=关闭):保留带=[p10-m, p90+m],m=max(该值, p90-p10 深度跨度)。带宽随物体自身深度跨度缩放——大物体远端边缘不误切,而'整条同时生成'的径向拖尾(背景深度整条拖出,内部自洽、局部 3x3 连续性检查看不见,实测)被整条切除。只作用于 ROI/语义地图链路"
-      description_en: "Minimum margin (meters, 0=disabled) of the per-instance ADAPTIVE percentile depth gate: keep-band = [p10-m, p90+m], m = max(tau, p90-p10 span). Band scales with the object's own depth extent — large objects keep their far edges, while coherent radial tail streaks (background bleed generated in one shot, internally depth-consistent so the local 3x3 check cannot see them, user-tested) are cut entirely. ROI/semantic-map chain only"
+      description: "实例级自适应百分位深度门控的最小边距(米,0=关闭):保留带=[p10-m, p90+m],m=max(该值, p90-p10 深度跨度)。带宽随物体自身深度跨度缩放——大物体远端边缘不误切,而'整条同时生成'的径向拖尾(背景深度整条拖出,内部自洽、局部 3x3 连续性检查看不见,实测)被整条切除。只作用于 ROI/语义地图链路。调大:点云仍出现整条径向拖尾/背景渗透时;调小或置0:目标远端边缘被截断、大物体点云残缺时"
+      description_en: "Minimum margin (meters, 0=disabled) of the per-instance ADAPTIVE percentile depth gate: keep-band = [p10-m, p90+m], m = max(tau, p90-p10 span). Band scales with the object's own depth extent — large objects keep their far edges, while coherent radial tail streaks (background bleed generated in one shot, internally depth-consistent so the local 3x3 check cannot see them, user-tested) are cut entirely. ROI/semantic-map chain only. Increase: radial tail streaks / background bleed still visible in the cloud; decrease or 0: far edges of (large) objects truncated"
       type: "double"
       default_value: "0.3"
       range: [0.0, 2.0]
@@ -237,6 +237,14 @@ seg_mask:
       description_en: "Whether to perform region of interest extraction, true:= region of interest extraction, false:= region of interest filtering"
       type: "bool"
       default_value: "false"
+      range: []
+      unit: ""
+
+    enable_roi_extraction:
+      description: "ROI/语义建图链路总开关：false=不投递 ROI 点云提取与叠加渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路；true=正常提取并发布 /roi/pointclouds 与 /roi/visual_depth_seg。bring_up 按 run_semantic_map 下发——只有开了语义建图 ROI 链路才会运行"
+      description_en: "Master switch for the ROI/semantic-map chain: false=skip the ROI point-cloud extraction and overlay-render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain; true=extract and publish /roi/pointclouds and /roi/visual_depth_seg normally. bring_up derives it from run_semantic_map — the ROI chain only runs when semantic mapping is enabled"
+      type: "bool"
+      default_value: "true"
       range: []
       unit: ""
 

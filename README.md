@@ -12,8 +12,10 @@ AI Segmentation Mask PointCloud ROI Extractor是一个基于ROS2 Humble的功能
 
 - 使用标准ROS2节点实现
 - 订阅深度图和AI检测信息，确保时间戳精确对齐
-- 根据检测类别和置信度阈值从点云中提取ROI
-- 发布过滤后的点云、深度图和掩码图像
+- 根据检测类别和置信度阈值从点云中提取或过滤ROI
+- 深度过滤链路（过滤点云、深度图、掩码）：始终开启，输出供避障导航使用
+- ROI点云链路（逐实例ROI点云，含实例id与置信度；ROI分割叠加图）：受 enable_roi_extraction 门控，bring_up 按 run_semantic_map 下发——只有开启语义建图后才会运行（semantic_map 订阅 roi_cloud_topic）
+- 常驻线程池并行处理帧（worker_threads），队列超限丢弃最旧帧（max_pending_frames）以约束延迟
 - 支持动态参数调整
 - 提供丰富的日志和调试信息
 
@@ -23,22 +25,32 @@ AI Segmentation Mask PointCloud ROI Extractor是一个基于ROS2 Humble的功能
 ai_seg_mask_pointcloud_roi_extractor/
 ├── include/
 │   └── ai_seg_mask_pointcloud_roi_extractor/
-│       └── ai_seg_mask_pointcloud_roi_extractor.hpp  # 组件头文件
+│       ├── ai_seg_mask_pointcloud_roi_extractor.hpp  # 组件头文件
+│       ├── params.hpp                                # 参数结构与声明/获取工具
+│       ├── internal_types.hpp                        # 帧任务、线程池与丢弃最旧帧队列
+│       └── depth_continuity.h                        # 深度连续性检查
 ├── src/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.cpp  # 组件主实现
-│   ├── callback.cpp                              # 回调函数实现
+│   ├── callback.cpp                              # 同步回调与任务投递
+│   ├── pipeline.cpp                              # 深度过滤 / ROI / 叠加渲染三路处理管线
+│   ├── depth_continuity.cpp                      # 深度连续性检查实现
 │   ├── publish.cpp                               # 发布函数实现
-│   ├── read_param.cpp                            # 参数读取实现
+│   ├── read_param.cpp                            # 参数与类别置信度读取
 │   ├── set_dynamic_para.cpp                      # 动态参数处理
-│   └── time_stamp.cpp                            # 时间戳转换工具
-|   |___ time_sync_detect.cpp                     # 时间同步话题异常检测
+│   ├── time_stamp.cpp                            # 时间戳转换工具
+│   └── time_sync_detect.cpp                      # 时间同步话题异常检测
 ├── launch/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.py   # 组件启动文件
-│   └── parser_config_params.py                   # 配置解析器
+│   ├── container.py                              # 组件容器装载
+│   └── seg_mask_parser_config_params.py          # 配置解析器
+├── msg/
+│   ├── ROIPointCloud.msg                         # 单实例ROI点云消息
+│   └── ROIPointClouds.msg                        # ROI点云列表消息
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # 参数配置描述
-│   └── model_classes_config.yaml                 # 类别置信度阈值配置
+│   ├── model_classes_config.yaml                 # 深度过滤管线类别置信度阈值配置
+│   └── model_classes_roi_config.yaml             # ROI提取管线类别置信度阈值配置
 ├── package.xml                         # 包定义文件
 ├── CMakeLists.txt                      # CMake构建文件
 ├── README.md                           # 中文文档
@@ -110,7 +122,10 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 项目使用YAML文件进行参数配置，主要配置文件包括：
 
 - **`config/descriptions/ai_seg_mask_pointcloud_roi_extractor.yaml`**：包含所有参数的详细描述、类型、默认值和单位
-- **`config/model_classes_config.yaml`**：配置各类别的置信度阈值
+- **`config/model_classes_config.yaml`**：深度过滤管线类别的置信度阈值
+- **`config/model_classes_roi_config.yaml`**：ROI 提取管线类别的置信度阈值（类名来自 YOLO 的 80 个 COCO 类别，见 tros_nav_workflow/bring_up/params/config/coco.list）；semantic_map 的类别白名单与该文件同源
+
+解析阶段将两份类别配置合并为通用阈值（冲突取较低置信度），之后各管线再分别用专属阈值二次过滤。
 
 ### 6.2 参数说明
 
@@ -129,6 +144,8 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | filtered_mask_topic | string | "/filtered_depth_mask" | 过滤后的掩码发布话题 | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | 过滤后的深度图发布话题 | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | 过滤后的点云发布话题 | - |
+| roi_cloud_topic | string | "/roi/pointclouds" | 逐实例ROI点云发布话题（仅语义建图链路使用，semantic_map 订阅） | - |
+| roi_visual_topic | string | "/roi/visual_depth_seg" | ROI分割叠加深度渲染图话题（bgr8，经 jpeg 编码后进 web 通道 2；空字符串禁用） | - |
 
 ### 6.3 配置参数说明
 
@@ -143,6 +160,17 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | camera_width | int | 640 | 相机图像宽度，必须与实际输入图像一致 | 像素 |
 | camera_height | int | 352 | 相机图像高度，必须与实际输入图像一致 | 像素 |
 | log_level | string | "info" | 日志级别，可选值：debug、info、warn、error、critical | - |
+| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI 提取管线类别置信度阈值文件路径 | - |
+| erode_iter_num_roi | int | 1 | ROI 点云提取前对分割掩码的腐蚀迭代次数（0=禁用；保持低值，该掩码会写回障碍管线） | - |
+| erode_extra_class_names | string | "chair" | 需要附加腐蚀的类别名单（逗号分隔，仅作用于 ROI/语义地图链路） | - |
+| erode_extra_iter_num | int | 2 | erode_extra_class_names 类别的附加腐蚀迭代次数（0=禁用） | - |
+| depth_continuity_check | bool | false | ROI 点云深度连续性检查（调试开关，默认关闭） | - |
+| max_depth_diff | double | 0.3 | 深度连续性检查允许的邻域中位数最大深度差 | 米 |
+| instance_depth_gate_tau | double | 0.3 | 实例级自适应百分位深度门控最小边距（0=禁用） | 米 |
+| use_extractor | bool | false | 是否进行感兴趣区域提取；true:=提取，false:=过滤 | - |
+| enable_roi_extraction | bool | true | ROI/语义建图链路总开关；false=跳过 ROI 提取与渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路。bring_up 按 run_semantic_map 下发 | - |
+| worker_threads | int | 2 | 常驻工作线程数（上限 3，避免与 BPU 抢核） | - |
+| max_pending_frames | int | 4 | 线程池待处理帧上限，超出丢弃最旧帧（需 ≥ 单帧任务数 3） | - |
 
 ### 6.4 动态参数
 
@@ -182,6 +210,8 @@ ros2 param set /seg_mask debug true
 | filtered_cloud_topic | `sensor_msgs/msg/PointCloud2` | 过滤后的点云，仅包含ROI区域的点云数据 |
 | filtered_depth_topic【最终发布的话题】 | `sensor_msgs/msg/Image` | 过滤后的深度图，仅包含ROI区域的深度信息 |
 | filtered_mask_topic | `sensor_msgs/msg/Image` | 过滤后的掩码，二值图像，1表示ROI区域，0表示非ROI区域 |
+| roi_cloud_topic | `ai_seg_mask_pointcloud_roi_extractor/msg/ROIPointClouds` | 逐实例ROI点云（每实例含点云、实例id、置信度、类别名），供 semantic_map 构建语义地图 |
+| roi_visual_topic | `sensor_msgs/msg/Image` | ROI分割叠加深度渲染图（bgr8：深度 JET 渲染 + ROI 掩码叠加） |
 
 ## 8. 工作流程
 
@@ -205,18 +235,22 @@ ros2 param set /seg_mask debug true
 - 对掩码进行膨胀处理
 - 根据掩码过滤深度图
 - 将深度图转换为点云
+- 常驻线程池逐帧并行执行三路任务（深度过滤、ROI点云提取、ROI叠加渲染），队列超限丢弃最旧帧
+- ROI链路：按类附加腐蚀与实例级自适应百分位深度门控去除边界伪影与径向拖尾噪声
+- 零拷贝共享深度消息缓冲、MatPool 复用大图缓冲、掩码单遍生成
 
 ### 8.5 结果发布阶段
 - 发布过滤后的深度图
 - 发布过滤后的掩码图像
 - 发布过滤后的点云
+- 发布逐实例ROI点云与ROI分割叠加渲染图（roi_visual_topic 非空时）
 
 ## 9. 注意事项
 
 1. **时间同步**：深度图和检测信息必须时间戳对齐，否则会被跳过处理
 2. **图像尺寸**：深度图和分割掩码的尺寸必须与配置的camera_width和camera_height一致
 3. **深度单位**：默认假设深度图单位为毫米，转换为米进行处理
-4. **类别配置**：model_classes_config.yaml文件需要根据实际的AI模型类别进行配置
+4. **类别配置**：model_classes_config.yaml（深度过滤）与 model_classes_roi_config.yaml（ROI提取）需要根据实际的AI模型类别进行配置（YOLO 的 80 个 COCO 类别，见 tros_nav_workflow/bring_up/params/config/coco.list）
 5. **性能考虑**：处理大分辨率图像时可能需要调整队列大小和时间戳偏差参数
 
 ## 10. 性能优化
@@ -268,59 +302,3 @@ ros2 param set /seg_mask debug true
 
 如有问题或建议，请联系项目维护人员。
 
-## 15. 重构版新增功能
-
-本版本将重构后继版（mask_pc_roi_extractor）的全部功能并回本仓库，保留原有文件结构与命名。相对旧版的新增功能如下。
-
-### 15.1 逐实例 ROI 点云输出（semantic_map 联动）
-
-- 新增自定义消息 `msg/ROIPointCloud.msg` / `msg/ROIPointClouds.msg`；
-- 新话题 `/roi_pointclouds`（参数 `roi_cloud_topic`）发布逐实例 ROI 点云（含实例 id 与 confidence），供下游 semantic_map 节点构建语义地图；
-- 新增 ROI 可视化叠加话题 `/roi_visual_depth_seg`（参数 `roi_visual_topic`，bgr8 深度+分割叠加图；置为空字符串可禁用该发布者）。
-
-### 15.2 双类别白名单
-
-- `config/model_classes_config.yaml`：深度过滤管线类别置信度阈值；
-- `config/model_classes_roi_config.yaml`：ROI 提取管线类别置信度阈值；
-- 解析阶段将两份配置合并为通用阈值（冲突取较低置信度），之后各管线再分别用专属阈值二次过滤。
-
-### 15.3 按类腐蚀与实例级深度门控
-
-- 全局：21×21 椭圆核腐蚀类别 ID 分割掩码，去除边界边缘伪影；
-- 按类附加腐蚀：`erode_extra_class_names`（默认 `chair`）+ `erode_extra_iter_num`（默认 2），仅作用于 ROI 点云/语义地图链路，不影响障碍物管线；
-- 实例级自适应百分位深度门控 `instance_depth_gate_tau`（默认 0.3 m，0=禁用）：保留带 = [p10 − m, p90 + m]，m 随实例自身深度跨度扩大，既保留大物体的远端边缘，又能整段切除背景渗透形成的径向尾状噪声；
-- 深度连续性检查 `depth_continuity_check`（默认关闭，调试开关）：比较像素深度与同类 3×3 邻域中位数，过滤物体边界处深度突变的背景像素。
-
-### 15.4 多线程帧处理
-
-- 常驻线程池（`worker_threads`，1–3，默认 2），同步回调投递任务后立即返回，executor 持续接收帧；
-- 待处理帧数超过 `max_pending_frames`（默认 2）时丢弃最旧帧；
-- 过滤深度输出与 ROI 点云提取两个阶段在工作线程上并行执行。
-
-### 15.5 性能优化
-
-- `toCvShare` 零拷贝共享深度图消息缓冲；
-- MatPool 复用大图像缓冲，消除每帧堆分配；
-- 掩码单遍生成、投影倒数乘法、点云 `reserve`。
-
-### 15.6 调试支持
-
-- `debug` 模式输出详细日志 + 每 100 帧平均单帧耗时；
-
-### 15.7 新增参数一览
-
-| 参数 | 类型 | 默认值 | 描述 |
-|------|------|-------|------|
-| roi_cloud_topic | string | "/roi_pointclouds" | ROI 点云发布话题 |
-| roi_visual_topic | string | "/roi_visual_depth_seg" | ROI 可视化叠加话题（空字符串禁用） |
-| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI 管线类别置信度配置文件 |
-| erode_iter_num_roi | int | 1 | ROI 掩码腐蚀迭代次数 |
-| erode_extra_class_names | string | "chair" | 需附加腐蚀的类名列表（逗号分隔） |
-| erode_extra_iter_num | int | 2 | 附加腐蚀迭代次数 |
-| depth_continuity_check | bool | false | 深度连续性检查（调试开关，默认关闭） |
-| max_depth_diff | double | 0.3 | 连续性检查允许的邻域中位数最大深度差（米） |
-| instance_depth_gate_tau | double | 0.3 | 实例级百分位深度门控最小裕量（米，0=禁用） |
-| worker_threads | int | 2 | 常驻工作线程数（上限 3） |
-| max_pending_frames | int | 2 | 线程池待处理帧上限，超出丢弃最旧帧 |
-
-> 完整参数说明见 `config/descriptions/ai_seg_mask_pointcloud_roi_extractor.yaml`。

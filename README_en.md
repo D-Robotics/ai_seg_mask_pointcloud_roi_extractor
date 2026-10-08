@@ -10,8 +10,10 @@ The package implements the following core features:
 
 - Standard ROS2 node implementation
 - Subscribes to depth images and AI detection information with precise timestamp synchronization
-- Extracts ROI from point clouds based on detection categories and confidence thresholds
-- Publishes filtered point clouds, depth images, and mask images
+- Extracts or filters ROI from point clouds based on detection categories and confidence thresholds
+- Depth-filter chain (filtered point cloud, depth image, mask): always on, output feeds obstacle avoidance / navigation
+- ROI pointcloud chain (per-instance ROI pointclouds with instance id and confidence; ROI overlay image): gated by enable_roi_extraction (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
+- Persistent thread pool for parallel frame processing (worker_threads); oldest frame dropped when the queue exceeds max_pending_frames to bound latency
 - Supports dynamic parameter adjustment
 - Provides comprehensive logging and debugging information
 
@@ -21,22 +23,32 @@ The package implements the following core features:
 ai_seg_mask_pointcloud_roi_extractor/
 ├── include/
 │   └── ai_seg_mask_pointcloud_roi_extractor/
-│       └── ai_seg_mask_pointcloud_roi_extractor.hpp  # Component header file
+│       ├── ai_seg_mask_pointcloud_roi_extractor.hpp  # Component header file
+│       ├── params.hpp                                # Parameter structs and declare/get utilities
+│       ├── internal_types.hpp                        # Frame jobs, thread pool, drop-oldest queue
+│       └── depth_continuity.h                        # Depth continuity check
 ├── src/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.cpp  # Main component implementation
-│   ├── callback.cpp                              # Callback function implementation
+│   ├── callback.cpp                              # Sync callback and task dispatch
+│   ├── pipeline.cpp                              # Filter / ROI / overlay-render processing pipeline
+│   ├── depth_continuity.cpp                      # Depth continuity check implementation
 │   ├── publish.cpp                               # Publishing function implementation
-│   ├── read_param.cpp                            # Parameter reading implementation
+│   ├── read_param.cpp                            # Parameter and class-confidence reading
 │   ├── set_dynamic_para.cpp                      # Dynamic parameter handling
-│   └── time_stamp.cpp                            # Timestamp conversion utilities
-|   |___ time_sync_detect.cpp                     # Time Synchronization Topic Anomaly Detection
+│   ├── time_stamp.cpp                            # Timestamp conversion utilities
+│   └── time_sync_detect.cpp                      # Time Synchronization Topic Anomaly Detection
 ├── launch/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.py   # Component launch file
-│   └── parser_config_params.py                   # Configuration parser
+│   ├── container.py                              # Component container loading
+│   └── seg_mask_parser_config_params.py          # Configuration parser
+├── msg/
+│   ├── ROIPointCloud.msg                         # Per-instance ROI pointcloud message
+│   └── ROIPointClouds.msg                        # ROI pointcloud list message
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # Parameter configuration description
-│   └── model_classes_config.yaml                 # Class confidence threshold configuration
+│   ├── model_classes_config.yaml                 # Depth-filtering pipeline class confidence thresholds
+│   └── model_classes_roi_config.yaml             # ROI-extraction pipeline class confidence thresholds
 ├── package.xml                         # Package definition file
 ├── CMakeLists.txt                      # CMake build configuration
 ├── README.md                           # Chinese documentation
@@ -107,7 +119,10 @@ ros2 launch ai_seg_mask_pointcloud_roi_extractor ai_seg_mask_pointcloud_roi_extr
 The project uses YAML files for parameter configuration. The main configuration files are:
 
 - **`config/descriptions/ai_seg_mask_pointcloud_roi_extractor.yaml`**: Contains detailed descriptions, types, default values, and units for all parameters
-- **`config/model_classes_config.yaml`**: Configures confidence thresholds for each class
+- **`config/model_classes_config.yaml`**: Class confidence thresholds for the depth-filtering pipeline
+- **`config/model_classes_roi_config.yaml`**: Class confidence thresholds for the ROI-extraction pipeline (class names come from YOLO's 80 COCO classes, see tros_nav_workflow/bring_up/params/config/coco.list); the semantic_map class whitelist shares this file
+
+The parsing stage merges both class configs into a common threshold map (lower confidence wins on conflict); each pipeline then applies its own thresholds as a second filter.
 
 ### 6.2 Parameter Description
 
@@ -126,6 +141,8 @@ The project uses YAML files for parameter configuration. The main configuration 
 | filtered_mask_topic | string | "/filtered_depth_mask" | Filtered mask publishing topic | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | Filtered depth image publishing topic | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | Filtered point cloud publishing topic | - |
+| roi_cloud_topic | string | "/roi/pointclouds" | Per-instance ROI pointcloud publish topic (semantic-map chain only, subscribed by semantic_map) | - |
+| roi_visual_topic | string | "/roi/visual_depth_seg" | ROI segment overlay depth render topic (bgr8; jpeg-encoded to web channel 2; empty string disables) | - |
 
 ### 6.3 Configuration Parameters
 
@@ -140,6 +157,17 @@ The project uses YAML files for parameter configuration. The main configuration 
 | camera_width | int | 640 | Camera image width, must match actual input image | pixels |
 | camera_height | int | 352 | Camera image height, must match actual input image | pixels |
 | log_level | string | "info" | Log level, available options: debug, info, warn, error, critical | - |
+| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI-extraction pipeline class-confidence threshold file path | - |
+| erode_iter_num_roi | int | 1 | Erosion iterations on the segmentation mask before ROI pointcloud extraction (0=disabled; keep low — the mask is written back into the obstacle pipeline) | - |
+| erode_extra_class_names | string | "chair" | Comma-separated class names receiving extra erosion (ROI/semantic-map chain only) | - |
+| erode_extra_iter_num | int | 2 | Extra erosion iterations for erode_extra_class_names (0=disabled) | - |
+| depth_continuity_check | bool | false | ROI pointcloud depth continuity check (debug switch, off by default) | - |
+| max_depth_diff | double | 0.3 | Max allowed depth difference from neighborhood median in the continuity check | meters |
+| instance_depth_gate_tau | double | 0.3 | Instance-level adaptive percentile depth gate minimum margin (0=disabled) | meters |
+| use_extractor | bool | false | Whether to perform ROI extraction; true:=extraction, false:=filtering | - |
+| enable_roi_extraction | bool | true | Master switch for the ROI/semantic-map chain; false=skip ROI extraction and render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain. bring_up derives it from run_semantic_map | - |
+| worker_threads | int | 2 | Persistent worker threads (max 3 to avoid starving BPU cores) | - |
+| max_pending_frames | int | 4 | Thread-pool pending frame cap; oldest frame dropped when exceeded (must be >= 3 tasks per frame) | - |
 
 ### 6.4 Dynamic Parameters
 
@@ -180,6 +208,8 @@ ros2 param set /seg_mask debug true
 | filtered_cloud_topic | `sensor_msgs/msg/PointCloud2` | Filtered point cloud containing only ROI area data |
 | filtered_depth_topic | `sensor_msgs/msg/Image` | Filtered depth image containing only ROI area information |
 | filtered_mask_topic | `sensor_msgs/msg/Image` | Filtered binary mask (1 = ROI area, 0 = non-ROI area) |
+| roi_cloud_topic | `ai_seg_mask_pointcloud_roi_extractor/msg/ROIPointClouds` | Per-instance ROI pointcloud (each instance carries cloud, instance id, confidence, class name), consumed by semantic_map |
+| roi_visual_topic | `sensor_msgs/msg/Image` | ROI segment overlay depth render (bgr8: JET depth rendering + ROI mask overlay) |
 
 ## 8. Workflow
 
@@ -203,18 +233,22 @@ ros2 param set /seg_mask debug true
 - Perform dilation processing on masks
 - Filter depth images based on masks
 - Convert depth images to point clouds
+- A persistent thread pool runs three tasks per frame in parallel (depth filtering, ROI pointcloud extraction, ROI overlay rendering); oldest frames are dropped when the queue overflows
+- ROI chain: per-class extra erosion and the instance-level adaptive percentile depth gate remove boundary artifacts and radial tail streaks
+- Zero-copy sharing of the depth message buffer, MatPool reuse of large image buffers, single-pass mask generation
 
 ### 8.5 Result Publishing Phase
 - Publish filtered depth images
 - Publish filtered mask images
 - Publish filtered point clouds
+- Publish per-instance ROI pointclouds and the ROI overlay render (when roi_visual_topic is non-empty)
 
 ## 9. Notes
 
 1. **Time Synchronization**: Depth images and detection information must be timestamp-aligned; otherwise, processing will be skipped
 2. **Image Size**: The size of depth images and segmentation masks must match the configured camera_width and camera_height
 3. **Depth Unit**: Depth images are assumed to be in millimeters, which are converted to meters for processing
-4. **Class Configuration**: The model_classes_config.yaml file must be configured according to the actual AI model classes
+4. **Class Configuration**: model_classes_config.yaml (depth filtering) and model_classes_roi_config.yaml (ROI extraction) must be configured according to the actual AI model classes (YOLO's 80 COCO classes, see tros_nav_workflow/bring_up/params/config/coco.list)
 5. **Performance Considerations**: When processing high-resolution images, adjust queue_size and allow_timestamp_deviation parameters as needed
 
 ## 10. Performance Optimization
@@ -265,59 +299,3 @@ This project is open source under the Apache License 2.0.
 
 For questions or suggestions, please contact the project maintainers.
 
-## 15. New Features (Merged from the Refactored Version)
-
-This release merges all functionality of the refactored successor (mask_pc_roi_extractor) back into this repository while keeping the original file layout and naming. New features relative to the previous version:
-
-### 15.1 Per-Instance ROI Pointcloud Output (semantic_map integration)
-
-- New custom messages `msg/ROIPointCloud.msg` / `msg/ROIPointClouds.msg`;
-- New topic `/roi_pointclouds` (parameter `roi_cloud_topic`) publishes per-instance ROI pointclouds (with instance id and confidence), consumed by the downstream semantic_map node for semantic mapping;
-- New ROI visualization overlay topic `/roi_visual_depth_seg` (parameter `roi_visual_topic`, bgr8 depth + segmentation overlay; set to an empty string to disable the publisher).
-
-### 15.2 Dual Class Whitelists
-
-- `config/model_classes_config.yaml`: class confidence thresholds for the depth-filtering pipeline;
-- `config/model_classes_roi_config.yaml`: class confidence thresholds for the ROI-extraction pipeline;
-- The parsing stage merges both configs into a common threshold map (lower confidence wins on conflict); each pipeline then applies its own thresholds as a second filter.
-
-### 15.3 Per-Class Erosion and Instance-Level Depth Gating
-
-- Global: a 21×21 elliptical kernel erodes the class-ID segmentation mask to remove boundary edge artifacts;
-- Per-class extra erosion: `erode_extra_class_names` (default `chair`) + `erode_extra_iter_num` (default 2), affecting only the ROI pointcloud / semantic-map chain, not the obstacle pipeline;
-- Instance-level adaptive percentile depth gate `instance_depth_gate_tau` (default 0.3 m, 0 = disabled): keep-band = [p10 − m, p90 + m] where m grows with the instance's own depth span — large objects keep their far edges while coherent radial tail streaks from background bleed are cut entirely;
-- Depth continuity check `depth_continuity_check` (default OFF, debug switch): compares pixel depth against the same-class 3×3 neighborhood median and filters out background pixels at depth discontinuities.
-
-### 15.4 Multithreaded Frame Processing
-
-- Persistent thread pool (`worker_threads`, 1–3, default 2); the sync callback enqueues a job and returns immediately so the executor keeps receiving frames;
-- When pending frames exceed `max_pending_frames` (default 2), the oldest frame is dropped;
-- The filtered-depth stage and the ROI-extraction stage run in parallel on worker threads.
-
-### 15.5 Performance Optimizations
-
-- `toCvShare` zero-copy sharing of the depth message buffer;
-- MatPool reuse of large image buffers, eliminating per-frame heap allocations;
-- Single-pass mask generation, reciprocal-multiplication projection, pointcloud `reserve`.
-
-### 15.6 Debug Support
-
-- `debug` mode emits verbose logs + average per-frame timing every 100 frames;
-
-### 15.7 New Parameters Overview
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| roi_cloud_topic | string | "/roi_pointclouds" | ROI pointcloud publish topic |
-| roi_visual_topic | string | "/roi_visual_depth_seg" | ROI visualization overlay topic (empty string disables) |
-| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI pipeline class-confidence config file |
-| erode_iter_num_roi | int | 1 | ROI mask erosion iterations |
-| erode_extra_class_names | string | "chair" | Comma-separated class names receiving extra erosion |
-| erode_extra_iter_num | int | 2 | Extra erosion iterations |
-| depth_continuity_check | bool | false | Depth continuity check (debug switch, default off) |
-| max_depth_diff | double | 0.3 | Max allowed depth difference from neighborhood median (meters) |
-| instance_depth_gate_tau | double | 0.3 | Instance-level percentile depth gate minimum margin (meters, 0 = disabled) |
-| worker_threads | int | 2 | Persistent worker threads (max 3) |
-| max_pending_frames | int | 2 | Thread-pool pending frame cap; oldest frame dropped when exceeded |
-
-> Full parameter documentation: `config/descriptions/ai_seg_mask_pointcloud_roi_extractor.yaml`.

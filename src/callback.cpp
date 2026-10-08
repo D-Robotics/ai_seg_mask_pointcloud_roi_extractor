@@ -227,20 +227,29 @@ namespace seg_mask_roi_extractor
                                    target_names_roi_confidence_);
         };
 
+        // ROI/semantic-map chain gate: when disabled, only the depth-filter task is
+        // enqueued and the ROI-extraction / overlay-render worker time is saved.
+        const bool roi_enabled = params_->enable_roi_extraction;
         if (thread_pool_)
         {
             // Add tasks to the thread pool and limit the maximum number of pending frames to avoid excessive memory growth
             const size_t max_pending = static_cast<size_t>(std::max(1, params_->max_pending_frames));
             thread_pool_->enqueue(task_filter, max_pending);
-            thread_pool_->enqueue(task_roi, max_pending);
-            thread_pool_->enqueue(task_visual, max_pending);
+            if (roi_enabled)
+            {
+                thread_pool_->enqueue(task_roi, max_pending);
+                thread_pool_->enqueue(task_visual, max_pending);
+            }
         }
         else
         {
             // Fallback (should not happen post-activate): run sequentially to stay correct.
             task_filter();
-            task_roi();
-            task_visual();
+            if (roi_enabled)
+            {
+                task_roi();
+                task_visual();
+            }
         }
 
         end = std::chrono::high_resolution_clock::now();
