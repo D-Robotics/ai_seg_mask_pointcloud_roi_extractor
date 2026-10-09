@@ -12,7 +12,7 @@ The package implements the following core features:
 - Subscribes to depth images and AI detection information with precise timestamp synchronization
 - Extracts or filters ROI from point clouds based on detection categories and confidence thresholds
 - Depth-filter chain (filtered point cloud, depth image, mask): always on, output feeds obstacle avoidance / navigation
-- ROI pointcloud chain (standard PointCloud2 with per-point class_id / confidence / instance_id; ROI overlay image): gated by enable_roi_extraction (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
+- ROI pointcloud chain (standard PointCloud2 with per-point class_id / confidence / instance_id / rgb palette color; ROI overlay image): gated by enable_roi_extraction (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
 - Persistent thread pool for parallel frame processing (worker_threads); oldest frame dropped when the queue exceeds max_pending_frames to bound latency
 - Supports dynamic parameter adjustment
 - Provides comprehensive logging and debugging information
@@ -138,7 +138,7 @@ The parsing stage merges both class configs into a common threshold map (lower c
 | filtered_mask_topic | string | "/filtered_depth_mask" | Filtered mask publishing topic | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | Filtered depth image publishing topic | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | Filtered point cloud publishing topic | - |
-| roi_cloud_topic | string | "/roi/pointclouds" | ROI pointcloud publish topic (standard PointCloud2 with per-point class_id/confidence/instance_id fields; semantic-map chain only) | - |
+| roi_cloud_topic | string | "/roi/pointclouds" | ROI pointcloud publish topic (standard PointCloud2 with per-point class_id/confidence/instance_id/rgb fields; semantic-map chain only) | - |
 | roi_visual_topic | string | "/roi/visual_depth_seg" | ROI segment overlay depth render topic (bgr8; jpeg-encoded to web channel 2; empty string disables) | - |
 
 ### 6.3 Configuration Parameters
@@ -205,7 +205,7 @@ ros2 param set /seg_mask debug true
 | filtered_cloud_topic | `sensor_msgs/msg/PointCloud2` | Filtered point cloud containing only ROI area data |
 | filtered_depth_topic | `sensor_msgs/msg/Image` | Filtered depth image containing only ROI area information |
 | filtered_mask_topic | `sensor_msgs/msg/Image` | Filtered binary mask (1 = ROI area, 0 = non-ROI area) |
-| roi_cloud_topic | `sensor_msgs/msg/PointCloud2` | ROI pointcloud with per-point fields: x/y/z (float32), class_id (int32), confidence (float32), instance_id (int32, per-frame box index), consumed by semantic_map |
+| roi_cloud_topic | `sensor_msgs/msg/PointCloud2` | ROI pointcloud with per-point fields: x/y/z (float32), class_id (int32), confidence (float32), instance_id (int32, per-frame box index), rgb (uint32, 0xAARRGGBB packed), consumed by semantic_map |
 | roi_visual_topic | `sensor_msgs/msg/Image` | ROI segment overlay depth render (bgr8: JET depth rendering + ROI mask overlay) |
 
 ## 8. Workflow
@@ -271,7 +271,7 @@ ros2 param set /seg_mask time_debug true
 
 ### 11.3 Visualize the ROI Pointcloud (foxglove / RViz)
 
-`roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. In foxglove, color by the `class_id` field to tell classes apart. The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame.
+`roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. Every point carries an `rgb` field — the palette colors match the semantic_map/object_ids markers (semantic_map `config/cell_colors.list`, assigned by whitelist order; class ids outside the whitelist fall back to the HSV scheme): set the message's **Color Mode to RGBA** in foxglove (or flat-color rendering in RViz) to see the exact semantic-map colors; Color by field `class_id` uses the built-in colormap instead. The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame.
 
 ![ROI pointcloud rendered in the foxglove 3D panel: the rainbow blob is a bottle instance cloud (colored by per-point class_id), the grid is the semantic_map label map, all in the map frame](image/roi_pointcloud_foxglove.png)
 

@@ -14,7 +14,7 @@ AI Segmentation Mask PointCloud ROI Extractor是一个基于ROS2 Humble的功能
 - 订阅深度图和AI检测信息，确保时间戳精确对齐
 - 根据检测类别和置信度阈值从点云中提取或过滤ROI
 - 深度过滤链路（过滤点云、深度图、掩码）：始终开启，输出供避障导航使用
-- ROI点云链路（标准 PointCloud2，逐点携带 class_id / confidence / instance_id；ROI分割叠加图）：受 enable_roi_extraction 门控，bring_up 按 run_semantic_map 下发——只有开启语义建图后才会运行（semantic_map 订阅 roi_cloud_topic）
+- ROI点云链路（标准 PointCloud2，逐点携带 class_id / confidence / instance_id / rgb 调色板色；ROI分割叠加图）：受 enable_roi_extraction 门控，bring_up 按 run_semantic_map 下发——只有开启语义建图后才会运行（semantic_map 订阅 roi_cloud_topic）
 - 常驻线程池并行处理帧（worker_threads），队列超限丢弃最旧帧（max_pending_frames）以约束延迟
 - 支持动态参数调整
 - 提供丰富的日志和调试信息
@@ -141,7 +141,7 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | filtered_mask_topic | string | "/filtered_depth_mask" | 过滤后的掩码发布话题 | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | 过滤后的深度图发布话题 | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | 过滤后的点云发布话题 | - |
-| roi_cloud_topic | string | "/roi/pointclouds" | ROI点云发布话题（标准 PointCloud2，逐点字段 class_id/confidence/instance_id；仅语义建图链路使用） | - |
+| roi_cloud_topic | string | "/roi/pointclouds" | ROI点云发布话题（标准 PointCloud2，逐点字段 class_id/confidence/instance_id/rgb；仅语义建图链路使用） | - |
 | roi_visual_topic | string | "/roi/visual_depth_seg" | ROI分割叠加深度渲染图话题（bgr8，经 jpeg 编码后进 web 通道 2；空字符串禁用） | - |
 
 ### 6.3 配置参数说明
@@ -207,7 +207,7 @@ ros2 param set /seg_mask debug true
 | filtered_cloud_topic | `sensor_msgs/msg/PointCloud2` | 过滤后的点云，仅包含ROI区域的点云数据 |
 | filtered_depth_topic【最终发布的话题】 | `sensor_msgs/msg/Image` | 过滤后的深度图，仅包含ROI区域的深度信息 |
 | filtered_mask_topic | `sensor_msgs/msg/Image` | 过滤后的掩码，二值图像，1表示ROI区域，0表示非ROI区域 |
-| roi_cloud_topic | `sensor_msgs/msg/PointCloud2` | ROI点云，逐点字段：x/y/z (float32)、class_id (int32)、confidence (float32)、instance_id (int32，帧内实例号)，供 semantic_map 构建语义地图 |
+| roi_cloud_topic | `sensor_msgs/msg/PointCloud2` | ROI点云，逐点字段：x/y/z (float32)、class_id (int32)、confidence (float32)、instance_id (int32，帧内实例号)、rgb (uint32，0xAARRGGBB 打包)，供 semantic_map 构建语义地图 |
 | roi_visual_topic | `sensor_msgs/msg/Image` | ROI分割叠加深度渲染图（bgr8：深度 JET 渲染 + ROI 掩码叠加） |
 
 ## 8. 工作流程
@@ -273,7 +273,7 @@ ros2 param set /seg_mask time_debug true
 
 ### 11.3 可视化 ROI 点云（foxglove / RViz）
 
-`roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本；foxglove 按字段着色选 `class_id` 即可区分类别。输出在相机光学坐标系下，foxglove 需勾选 /tf 与 /tf_static，或把面板固定坐标系设为该 frame。
+`roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本。每个点自带 `rgb` 字段——调色板颜色与 semantic_map/object_ids 标记同源（semantic_map `config/cell_colors.list` 按白名单顺序分配，白名单之外的类别 id 按 HSV 兜底规则着色）：foxglove 把该消息的 **Color Mode 设为 RGBA**、RViz 用平色渲染即显示与语义地图一致的颜色；也可用 Color by field `class_id` 走内置色图。输出在相机光学坐标系下，foxglove 需勾选 /tf 与 /tf_static，或把面板固定坐标系设为该 frame。
 
 ![ROI 点云在 foxglove 三维面板中渲染：彩虹色为 bottle 实例点云（逐点 class_id 着色），网格为 semantic_map 语义地图，已变换至 map 坐标系](image/roi_pointcloud_foxglove.png)
 

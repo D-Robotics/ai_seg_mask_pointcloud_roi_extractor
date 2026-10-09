@@ -89,8 +89,8 @@ seg_mask:
       unit: ""
 
     roi_cloud_topic:
-      description: "ROI点云话题名称（标准 sensor_msgs/PointCloud2，逐点字段 x/y/z float32 + class_id int32 + confidence float32 + instance_id int32（帧内实例号）；仅语义建图链路使用，由 semantic_map 订阅）"
-      description_en: "ROI point cloud topic name (standard sensor_msgs/PointCloud2 with per-point fields x/y/z float32 + class_id int32 + confidence float32 + instance_id int32 (per-frame box index); used only by the semantic mapping chain, subscribed by semantic_map)"
+      description: "ROI点云话题名称（标准 sensor_msgs/PointCloud2，逐点字段 x/y/z float32 + class_id int32 + confidence float32 + instance_id int32（帧内实例号）+ rgb uint32（调色板色，与 semantic_map/object_ids 同源）；仅语义建图链路使用，由 semantic_map 订阅）"
+      description_en: "ROI point cloud topic name (standard sensor_msgs/PointCloud2 with per-point fields x/y/z float32 + class_id int32 + confidence float32 + instance_id int32 (per-frame box index) + rgb uint32 (palette color, same source as semantic_map/object_ids); used only by the semantic mapping chain, subscribed by semantic_map)"
       type: "string"
       default_value: "/roi/pointclouds"
       range: []
