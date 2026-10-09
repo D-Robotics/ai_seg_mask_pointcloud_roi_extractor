@@ -46,6 +46,8 @@ ai_seg_mask_pointcloud_roi_extractor/
 ├── msg/
 │   ├── ROIPointCloud.msg                         # 单实例ROI点云消息
 │   └── ROIPointClouds.msg                        # ROI点云列表消息
+├── scripts/
+│   └── roi_viz_bridge.py                         # ROI点云→PointCloud2 调试渲染桥（可选）
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # 参数配置描述
@@ -273,6 +275,21 @@ ros2 param set /seg_mask log_level debug
 # 查看各个模块的运行时间
 ros2 param set /seg_mask time_debug true
 ```
+
+### 11.3 可视化 ROI 点云（foxglove / RViz）
+
+`ROIPointClouds` 为自定义消息，foxglove / RViz 无法直接渲染。包内附带可选调试脚本，把逐实例点云合并为标准 `PointCloud2`（`intensity` 字段 = 实例 id）后重发布：
+
+```bash
+# 默认：/roi/pointclouds (ROIPointClouds) -> /roi/pointclouds_viz (PointCloud2)
+ros2 run ai_seg_mask_pointcloud_roi_extractor roi_viz_bridge.py
+
+# 自定义输入/输出话题与坐标系
+ros2 run ai_seg_mask_pointcloud_roi_extractor roi_viz_bridge.py \
+  --ros-args -p input_topic:=/roi/pointclouds -p output_topic:=/roi/pointclouds_viz -p frame_id:=camera_optical_frame
+```
+
+之后在 foxglove 3D 面板（或 RViz 的 PointCloud2 显示）订阅输出话题即可。输出在相机光学坐标系下，foxglove 需勾选 /tf 与 /tf_static，或把面板固定坐标系设为该 frame。该脚本不被任何 launch 启动，按需手动运行、零默认开销。
 
 ### 11.2 检查参数
 

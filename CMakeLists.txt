@@ -117,9 +117,16 @@ ament_export_dependencies(rosidl_default_runtime)
 #   RUNTIME DESTINATION bin
 # )
 
-install(TARGETS 
+install(TARGETS
   ${PROJECT_NAME}_component
   DESTINATION lib/
+)
+
+# Optional debug tool: republish ROIPointClouds as a standard PointCloud2 for
+# Foxglove / RViz. Not launched by any bringup launch file; run manually via
+# `ros2 run ${PROJECT_NAME} roi_viz_bridge.py`.
+install(PROGRAMS scripts/roi_viz_bridge.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/

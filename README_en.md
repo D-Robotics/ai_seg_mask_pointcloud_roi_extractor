@@ -44,6 +44,8 @@ ai_seg_mask_pointcloud_roi_extractor/
 ├── msg/
 │   ├── ROIPointCloud.msg                         # Per-instance ROI pointcloud message
 │   └── ROIPointClouds.msg                        # ROI pointcloud list message
+├── scripts/
+│   └── roi_viz_bridge.py                         # ROI pointcloud -> PointCloud2 debug render bridge (optional)
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # Parameter configuration description
@@ -271,6 +273,21 @@ ros2 param set /seg_mask log_level debug
 # Dynamically check time
 ros2 param set /seg_mask time_debug true
 ```
+
+### 11.3 Visualize the ROI Pointcloud (foxglove / RViz)
+
+`ROIPointClouds` is a custom message that foxglove / RViz cannot render directly. The package ships an optional debug script that merges the per-instance clouds into a standard `PointCloud2` (the `intensity` field carries the instance id) and republishes it:
+
+```bash
+# Default: /roi/pointclouds (ROIPointClouds) -> /roi/pointclouds_viz (PointCloud2)
+ros2 run ai_seg_mask_pointcloud_roi_extractor roi_viz_bridge.py
+
+# Custom input/output topics and frame
+ros2 run ai_seg_mask_pointcloud_roi_extractor roi_viz_bridge.py \
+  --ros-args -p input_topic:=/roi/pointclouds -p output_topic:=/roi/pointclouds_viz -p frame_id:=camera_optical_frame
+```
+
+Then subscribe to the output topic in a foxglove 3D panel (or an RViz PointCloud2 display). The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame. The script is not launched by any launch file; run it manually as needed at zero default cost.
 
 ### 11.2 Check Parameters
 
