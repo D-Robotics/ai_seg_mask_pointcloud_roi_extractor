@@ -1,4 +1,4 @@
-// Copyright 2025 perception
+// Copyright (c) 2025，D-Robotics.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -157,7 +157,7 @@ namespace seg_mask_roi_extractor
             params_->filtered_mask_topic, 
             rclcpp::QoS(DEFAULT_QOS_PUB));
 
-        roi_cloud_pub_ = create_publisher<::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds>(
+        roi_cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(
             params_->roi_cloud_topic, 1);
 
         // ROI visual overlay image (bgr8 depth + segment). Only created when a

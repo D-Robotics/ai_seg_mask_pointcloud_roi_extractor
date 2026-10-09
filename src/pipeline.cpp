@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <set>
 #include <vector>
 
@@ -76,7 +77,7 @@ namespace seg_mask_roi_extractor
                                                 const std::vector<BoxInfo>& filtered_all_box_info,
                                                 double time_stamp,
                                                 const std::string& frame_id,
-                                                rclcpp::Publisher<::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds>::SharedPtr roi_cloud_pub,
+                                                rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr roi_cloud_pub,
                                                 int img_width,
                                                 int img_height,
                                                 float min_depth,
@@ -119,9 +120,14 @@ namespace seg_mask_roi_extractor
         // Compute the header stamp once (constant for all sub-clouds of this frame).
         const rclcpp::Time stamp = timeStampDoubleToTime(time_stamp);
 
-        ::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds roi_clouds_msg;
-        roi_clouds_msg.header.frame_id = frame_id;
-        roi_clouds_msg.header.stamp = stamp;
+        // Standard PointCloud2 output (no custom message): instances are
+        // flattened into one cloud, each point carrying its class id and
+        // confidence.  Field layout (contract with semantic_map, documented
+        // in README):  x,y,z float32 | class_id int32 | confidence float32.
+        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; };
+        static_assert(sizeof(RoiPoint) == 20, "unexpected padding in RoiPoint");
+        std::vector<RoiPoint> pts;
+        std::set<int> seen_ids;
 
         for (const auto& box_info : filtered_all_box_info)
         {
@@ -208,6 +214,9 @@ namespace seg_mask_roi_extractor
 
             if (cloud->empty()) continue;
 
+            const int32_t class_id = static_cast<int32_t>(box_info.id);
+            const float confidence = static_cast<float>(box_info.confidence);
+
             // Instance-level adaptive percentile depth gate (2026-09-14).
             // Why: radial "tail" streaks from occlusion boundaries are generated
             // as one coherent run in a single frame — every streak pixel's 3x3
@@ -250,30 +259,17 @@ namespace seg_mask_roi_extractor
                 if (cloud->empty()) continue;
             }
 
-            cloud->width = cloud->size();
-            cloud->height = 1;
-            cloud->is_dense = false;
-            // Convert to ROS PointCloud2, then MOVE it into the ROI wrapper (no message copy).
-            ::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointCloud roi_cloud;
-            pcl::toROSMsg(*cloud, roi_cloud.cloud);
-            roi_cloud.cloud.header.frame_id = frame_id;
-            roi_cloud.cloud.header.stamp = stamp;
-            roi_cloud.confidence = box_info.confidence;
-            roi_cloud.id = static_cast<int32_t>(box_info.id);
-
-            // MOVE the wrapper into the aggregate (avoids copying the whole PointCloud2 buffer).
-            roi_clouds_msg.clouds.push_back(std::move(roi_cloud));
+            for (const auto& p : cloud->points)
+            {
+                pts.push_back({p.x, p.y, p.z, class_id, confidence});
+            }
+            seen_ids.insert(static_cast<int>(class_id));
         }
         
-        if (!roi_clouds_msg.clouds.empty())
+        if (!pts.empty())
         {
             // Log the classes present in this frame (deduplicated, one log per frame).
             {
-                std::set<int> seen_ids;
-                for (const auto& c : roi_clouds_msg.clouds)
-                {
-                    seen_ids.insert(c.id);
-                }
                 // Build a compact log line: "id:name, id:name, ..."
                 std::string line;
                 for (int id : seen_ids)
@@ -307,8 +303,33 @@ namespace seg_mask_roi_extractor
 
         // Always publish — even empty messages trigger semantic_map's callback
         // so decay continues when there are no detections.
-        auto out = std::make_unique<::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds>(std::move(roi_clouds_msg));
-        roi_cloud_pub->publish(std::move(out));
+        sensor_msgs::msg::PointCloud2 roi_msg;
+        roi_msg.header.frame_id = frame_id;
+        roi_msg.header.stamp = stamp;
+        roi_msg.height = 1;
+        roi_msg.width = static_cast<uint32_t>(pts.size());
+        const auto addField = [&roi_msg](const char* name, uint32_t offset, uint8_t datatype)
+        {
+            sensor_msgs::msg::PointField f;
+            f.name = name;
+            f.offset = offset;
+            f.datatype = datatype;
+            f.count = 1;
+            roi_msg.fields.push_back(f);
+        };
+        addField("x", 0, sensor_msgs::msg::PointField::FLOAT32);
+        addField("y", 4, sensor_msgs::msg::PointField::FLOAT32);
+        addField("z", 8, sensor_msgs::msg::PointField::FLOAT32);
+        addField("class_id", 12, sensor_msgs::msg::PointField::INT32);
+        addField("confidence", 16, sensor_msgs::msg::PointField::FLOAT32);
+        roi_msg.point_step = sizeof(RoiPoint);
+        roi_msg.row_step = roi_msg.point_step * roi_msg.width;
+        roi_msg.is_bigendian = false;
+        roi_msg.is_dense = false;
+        roi_msg.data.resize(pts.size() * sizeof(RoiPoint));
+        std::memcpy(roi_msg.data.data(), pts.data(), pts.size() * sizeof(RoiPoint));
+
+        roi_cloud_pub->publish(std::move(roi_msg));
         return;
     }
 

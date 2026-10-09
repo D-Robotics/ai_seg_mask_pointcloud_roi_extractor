@@ -12,7 +12,7 @@ The package implements the following core features:
 - Subscribes to depth images and AI detection information with precise timestamp synchronization
 - Extracts or filters ROI from point clouds based on detection categories and confidence thresholds
 - Depth-filter chain (filtered point cloud, depth image, mask): always on, output feeds obstacle avoidance / navigation
-- ROI pointcloud chain (per-instance ROI pointclouds with instance id and confidence; ROI overlay image): gated by enable_roi_extraction (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
+- ROI pointcloud chain (standard PointCloud2 with per-point class_id and confidence; ROI overlay image): gated by enable_roi_extraction (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
 - Persistent thread pool for parallel frame processing (worker_threads); oldest frame dropped when the queue exceeds max_pending_frames to bound latency
 - Supports dynamic parameter adjustment
 - Provides comprehensive logging and debugging information
@@ -41,11 +41,6 @@ ai_seg_mask_pointcloud_roi_extractor/
 │   ├── ai_seg_mask_pointcloud_roi_extractor.py   # Component launch file
 │   ├── container.py                              # Component container loading
 │   └── seg_mask_parser_config_params.py          # Configuration parser
-├── msg/
-│   ├── ROIPointCloud.msg                         # Per-instance ROI pointcloud message
-│   └── ROIPointClouds.msg                        # ROI pointcloud list message
-├── scripts/
-│   └── roi_viz_bridge.py                         # ROI pointcloud -> PointCloud2 debug render bridge (optional)
 ├── config/
 │   ├── descriptions/
 │   │   └── ai_seg_mask_pointcloud_roi_extractor.yaml  # Parameter configuration description
@@ -143,7 +138,7 @@ The parsing stage merges both class configs into a common threshold map (lower c
 | filtered_mask_topic | string | "/filtered_depth_mask" | Filtered mask publishing topic | - |
 | filtered_depth_topic | string | "/filtered_depth_img" | Filtered depth image publishing topic | - |
 | filtered_cloud_topic | string | "/filtered_depth_cloud" | Filtered point cloud publishing topic | - |
-| roi_cloud_topic | string | "/roi/pointclouds" | Per-instance ROI pointcloud publish topic (semantic-map chain only, subscribed by semantic_map) | - |
+| roi_cloud_topic | string | "/roi/pointclouds" | ROI pointcloud publish topic (standard PointCloud2 with per-point class_id/confidence fields; semantic-map chain only) | - |
 | roi_visual_topic | string | "/roi/visual_depth_seg" | ROI segment overlay depth render topic (bgr8; jpeg-encoded to web channel 2; empty string disables) | - |
 
 ### 6.3 Configuration Parameters
@@ -210,7 +205,7 @@ ros2 param set /seg_mask debug true
 | filtered_cloud_topic | `sensor_msgs/msg/PointCloud2` | Filtered point cloud containing only ROI area data |
 | filtered_depth_topic | `sensor_msgs/msg/Image` | Filtered depth image containing only ROI area information |
 | filtered_mask_topic | `sensor_msgs/msg/Image` | Filtered binary mask (1 = ROI area, 0 = non-ROI area) |
-| roi_cloud_topic | `ai_seg_mask_pointcloud_roi_extractor/msg/ROIPointClouds` | Per-instance ROI pointcloud (each instance carries cloud, instance id, confidence, class name), consumed by semantic_map |
+| roi_cloud_topic | `sensor_msgs/msg/PointCloud2` | ROI pointcloud with per-point fields: x/y/z (float32), class_id (int32), confidence (float32), consumed by semantic_map |
 | roi_visual_topic | `sensor_msgs/msg/Image` | ROI segment overlay depth render (bgr8: JET depth rendering + ROI mask overlay) |
 
 ## 8. Workflow
@@ -243,7 +238,7 @@ ros2 param set /seg_mask debug true
 - Publish filtered depth images
 - Publish filtered mask images
 - Publish filtered point clouds
-- Publish per-instance ROI pointclouds and the ROI overlay render (when roi_visual_topic is non-empty)
+- Publish the ROI pointcloud (standard PointCloud2) and the ROI overlay render (when roi_visual_topic is non-empty)
 
 ## 9. Notes
 
@@ -276,18 +271,7 @@ ros2 param set /seg_mask time_debug true
 
 ### 11.3 Visualize the ROI Pointcloud (foxglove / RViz)
 
-`ROIPointClouds` is a custom message that foxglove / RViz cannot render directly. The package ships an optional debug script that merges the per-instance clouds into a standard `PointCloud2` (the `intensity` field carries the instance id) and republishes it:
-
-```bash
-# Default: /roi/pointclouds (ROIPointClouds) -> /roi/pointclouds_viz (PointCloud2)
-ros2 run ai_seg_mask_pointcloud_roi_extractor roi_viz_bridge.py
-
-# Custom input/output topics and frame
-ros2 run ai_seg_mask_pointcloud_roi_extractor roi_viz_bridge.py \
-  --ros-args -p input_topic:=/roi/pointclouds -p output_topic:=/roi/pointclouds_viz -p frame_id:=camera_optical_frame
-```
-
-Then subscribe to the output topic in a foxglove 3D panel (or an RViz PointCloud2 display). The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame. The script is not launched by any launch file; run it manually as needed at zero default cost.
+`roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. In foxglove, color by the `class_id` field to tell classes apart. The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame.
 
 ### 11.2 Check Parameters
 

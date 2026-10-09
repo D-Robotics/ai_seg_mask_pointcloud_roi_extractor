@@ -27,24 +27,12 @@ find_package(pcl_conversions REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(ai_msgs REQUIRED)  # 自定义消息依赖
 find_package(ament_index_cpp REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
 
 # 第三方库依赖
 find_package(PCL REQUIRED COMPONENTS common io filters)
 find_package(OpenCV 4 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
-
-# ========== 自定义消息生成 ==========
-set(msg_files
-  "msg/ROIPointCloud.msg"
-  "msg/ROIPointClouds.msg"
-)
-
-rosidl_generate_interfaces(${PROJECT_NAME}
-  ${msg_files}
-  DEPENDENCIES std_msgs sensor_msgs
-)
 
 set(SOURCE_FILES1 
   src/callback.cpp
@@ -68,7 +56,6 @@ target_include_directories(${PROJECT_NAME}_component
   PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
   SYSTEM  # 系统头文件，抑制第三方库警告
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
@@ -97,17 +84,11 @@ target_link_libraries(${PROJECT_NAME}_component
   Eigen3::Eigen
 )
 
-# 链接自定义消息
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(${PROJECT_NAME}_component ${cpp_typesupport_target})
-
 # ========== 注册组件（核心功能保留） ==========
 rclcpp_components_register_nodes(${PROJECT_NAME}_component
   PLUGIN "seg_mask_roi_extractor::AISegMaskPointCloudROIExtractor"
 #   EXECUTABLE ${PROJECT_NAME}
 )
-
-ament_export_dependencies(rosidl_default_runtime)
 
 # ========== 安装规则 ==========
 # install(TARGETS 
@@ -120,13 +101,6 @@ ament_export_dependencies(rosidl_default_runtime)
 install(TARGETS
   ${PROJECT_NAME}_component
   DESTINATION lib/
-)
-
-# Optional debug tool: republish ROIPointClouds as a standard PointCloud2 for
-# Foxglove / RViz. Not launched by any bringup launch file; run manually via
-# `ros2 run ${PROJECT_NAME} roi_viz_bridge.py`.
-install(PROGRAMS scripts/roi_viz_bridge.py
-  DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/

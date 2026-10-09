@@ -1,4 +1,4 @@
-// Copyright 2025 perception
+// Copyright (c) 2025，D-Robotics.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,8 +43,7 @@
 
 #include "ai_msgs/msg/perception_targets.hpp"
 #include "ai_msgs/msg/perception_info.hpp"
-#include "ai_seg_mask_pointcloud_roi_extractor/msg/roi_point_cloud.hpp"
-#include "ai_seg_mask_pointcloud_roi_extractor/msg/roi_point_clouds.hpp"
+#include <sensor_msgs/msg/point_field.hpp>
 #include "ai_seg_mask_pointcloud_roi_extractor/params.hpp"
 #include "ai_seg_mask_pointcloud_roi_extractor/internal_types.hpp"
 
@@ -317,7 +316,7 @@ namespace seg_mask_roi_extractor
                                       const std::vector<BoxInfo>& filtered_all_box_info,
                                       double timestamp,
                                       const std::string& frame_id,
-                                      rclcpp::Publisher<::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds>::SharedPtr roi_cloud_pub,
+                                      rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr roi_cloud_pub,
                                       int img_width,
                                       int img_height,
                                       float min_depth,
@@ -457,7 +456,7 @@ namespace seg_mask_roi_extractor
             rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr filtered_depth_mask_pub_;  ///< Filtered depth mask image publisher
             rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_cloud_pub_;  ///< Filtered point cloud publisher
             rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr filtered_depth_pub_;  ///< Filtered depth image publisher
-            rclcpp::Publisher<::ai_seg_mask_pointcloud_roi_extractor::msg::ROIPointClouds>::SharedPtr roi_cloud_pub_;  ///< ROI point clouds publisher
+            rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr roi_cloud_pub_;  ///< ROI point clouds publisher (fields: x/y/z/class_id/confidence)
             rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr roi_visual_pub_;  ///< ROI visual overlay image publisher (bgr8)
 
             message_filters::Subscriber<sensor_msgs::msg::Image> depth_sub_;  ///< Depth image subscriber
