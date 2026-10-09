@@ -124,10 +124,11 @@ namespace seg_mask_roi_extractor
         // flattened into one cloud, each point carrying its class id and
         // confidence.  Field layout (contract with semantic_map, documented
         // in README):  x,y,z float32 | class_id int32 | confidence float32.
-        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; };
-        static_assert(sizeof(RoiPoint) == 20, "unexpected padding in RoiPoint");
+        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; int32_t instance_id; };
+        static_assert(sizeof(RoiPoint) == 24, "unexpected padding in RoiPoint");
         std::vector<RoiPoint> pts;
         std::set<int> seen_ids;
+        int32_t instance_seq = 0;  // per-frame instance counter (one per emitted box)
 
         for (const auto& box_info : filtered_all_box_info)
         {
@@ -261,9 +262,10 @@ namespace seg_mask_roi_extractor
 
             for (const auto& p : cloud->points)
             {
-                pts.push_back({p.x, p.y, p.z, class_id, confidence});
+                pts.push_back({p.x, p.y, p.z, class_id, confidence, instance_seq});
             }
             seen_ids.insert(static_cast<int>(class_id));
+            ++instance_seq;
         }
         
         if (!pts.empty())
@@ -322,6 +324,7 @@ namespace seg_mask_roi_extractor
         addField("z", 8, sensor_msgs::msg::PointField::FLOAT32);
         addField("class_id", 12, sensor_msgs::msg::PointField::INT32);
         addField("confidence", 16, sensor_msgs::msg::PointField::FLOAT32);
+        addField("instance_id", 20, sensor_msgs::msg::PointField::INT32);
         roi_msg.point_step = sizeof(RoiPoint);
         roi_msg.row_step = roi_msg.point_step * roi_msg.width;
         roi_msg.is_bigendian = false;
