@@ -19,12 +19,14 @@ add_compile_options(-Wall -Wextra -Wno-anon-structs)
 # ROS2核心依赖
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(ai_msgs REQUIRED)  # 自定义消息依赖
+find_package(ament_index_cpp REQUIRED)
 
 # 第三方库依赖
 find_package(PCL REQUIRED COMPONENTS common io filters)
@@ -35,6 +37,8 @@ find_package(Eigen3 REQUIRED)
 set(SOURCE_FILES1 
   src/callback.cpp
   src/publish.cpp
+  src/pipeline.cpp
+  src/depth_continuity.cpp
   src/set_dynamic_para.cpp
   src/time_stamp.cpp
   src/read_param.cpp
@@ -68,6 +72,8 @@ ament_target_dependencies(${PROJECT_NAME}_component
   pcl_conversions
   message_filters
   ai_msgs
+  std_msgs
+  ament_index_cpp
 )
 
 # 链接第三方库
@@ -84,8 +90,6 @@ rclcpp_components_register_nodes(${PROJECT_NAME}_component
 #   EXECUTABLE ${PROJECT_NAME}
 )
 
-ament_export_dependencies(rosidl_default_runtime)
-
 # ========== 安装规则 ==========
 # install(TARGETS 
 #   ${PROJECT_NAME}_component
@@ -94,7 +98,7 @@ ament_export_dependencies(rosidl_default_runtime)
 #   RUNTIME DESTINATION bin
 # )
 
-install(TARGETS 
+install(TARGETS
   ${PROJECT_NAME}_component
   DESTINATION lib/
 )

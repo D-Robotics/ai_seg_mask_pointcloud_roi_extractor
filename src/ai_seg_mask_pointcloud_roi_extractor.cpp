@@ -1,4 +1,4 @@
-// Copyright 2025 perception
+// Copyright (c) 2025，D-Robotics.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ namespace seg_mask_roi_extractor
 {
 
     AISegMaskPointCloudROIExtractor::AISegMaskPointCloudROIExtractor(const rclcpp::NodeOptions &options)
-        : rclcpp::Node("depth_mask_extractor_node", options)
+        : rclcpp::Node("seg_mask", options)
     {
         RCLCPP_INFO(get_logger(), "AISegMaskPointCloudROIExtractor Constructed Start");
 
@@ -69,11 +69,23 @@ namespace seg_mask_roi_extractor
         // Print parameters using the parameter's print method
         params_->print(get_logger());
 
+        // ---- thread pool ----
+        size_t n = static_cast<size_t>(params_->worker_threads);
+        if (n < 1) n = 1;
+        if (n > 3) n = 3;
+        thread_pool_ = std::make_shared<ThreadPool>(n);
+        RCLCPP_INFO(get_logger(), "Worker thread pool started with %zu threads", n);
+
         if (!parserYamlParam())
         {
             RCLCPP_ERROR(get_logger(), "Failed to convert class info to maps!");
             return false;
         }
+
+        // ROI point colors: HSV fallback table + cell_colors.list palette.
+        // Loaded once here; the palette overlay is applied in
+        // rebuildRoiColorOverlay() when the runtime class list arrives.
+        loadRoiClassColors();
 
         if (!dynamicParaCallback())
         {
@@ -149,6 +161,20 @@ namespace seg_mask_roi_extractor
         filtered_depth_mask_pub_ = create_publisher<sensor_msgs::msg::Image>(
             params_->filtered_mask_topic, 
             rclcpp::QoS(DEFAULT_QOS_PUB));
+
+        roi_cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+            params_->roi_cloud_topic, 1);
+
+        // ROI visual overlay image (bgr8 depth + segment). Only created when a
+        // topic name is configured (empty string disables this publisher).
+        if (!params_->roi_visual_topic.empty())
+        {
+            roi_visual_pub_ = create_publisher<sensor_msgs::msg::Image>(
+                params_->roi_visual_topic,
+                rclcpp::QoS(DEFAULT_QOS_PUB));
+            RCLCPP_INFO(get_logger(), "ROI visual overlay publisher created on %s",
+                        params_->roi_visual_topic.c_str());
+        }
 
         RCLCPP_INFO(get_logger(), "Initialize publisher end");
         return;
