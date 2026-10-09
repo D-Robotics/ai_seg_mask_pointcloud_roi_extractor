@@ -273,6 +273,9 @@ ros2 param set /seg_mask time_debug true
 
 `roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. In foxglove, color by the `class_id` field to tell classes apart. The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame.
 
+![ROI pointcloud rendered in the foxglove 3D panel: the rainbow blob is a bottle instance cloud (colored by per-point class_id), the grid is the semantic_map label map, all in the map frame](image/roi_pointcloud_foxglove.png)
+
+
 ### 11.2 Check Parameters
 
 ```bash

@@ -275,6 +275,9 @@ ros2 param set /seg_mask time_debug true
 
 `roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本；foxglove 按字段着色选 `class_id` 即可区分类别。输出在相机光学坐标系下，foxglove 需勾选 /tf 与 /tf_static，或把面板固定坐标系设为该 frame。
 
+![ROI 点云在 foxglove 三维面板中渲染：彩虹色为 bottle 实例点云（逐点 class_id 着色），网格为 semantic_map 语义地图，已变换至 map 坐标系](image/roi_pointcloud_foxglove.png)
+
+
 ### 11.2 检查参数
 
 ```bash
