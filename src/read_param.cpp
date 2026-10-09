@@ -89,7 +89,14 @@ namespace seg_mask_roi_extractor
                 {
                     if (node.second.IsScalar())
                     {
-                        out_map[node.first.as<std::string>()] = node.second.as<double>();
+                        const std::string cls_name = node.first.as<std::string>();
+                        out_map[cls_name] = node.second.as<double>();
+                        if (label == std::string("ROI"))
+                        {
+                            // File order preserved: drives per-point palette
+                            // assignment (cell_colors.list line N -> class N).
+                            roi_class_names_.push_back(cls_name);
+                        }
                     }
                 }
                 for (const auto& pair : out_map)
@@ -134,5 +141,93 @@ namespace seg_mask_roi_extractor
 
         rebuildTargetClassIdSet();
         return true;
+    }
+
+    void AISegMaskPointCloudROIExtractor::loadRoiClassColors()
+    {
+        // 1. Base scheme for every class id — identical to the semantic_map
+        //    visualizer fallback: 20 hue groups x 4 brightness levels.
+        roi_color_base_.clear();
+        roi_color_base_.reserve(80);
+        for (int id = 0; id < 80; ++id)
+        {
+            const float h = static_cast<float>(id / 4) * 360.0f / 20.0f;
+            const float s = 1.0f;
+            const float v = 0.6f + 0.4f * (static_cast<float>(id % 4) / 3.0f);
+            const float c = v * s;
+            const float x = c * (1.0f - std::fabs(std::fmod(h / 60.0f, 2.0f) - 1.0f));
+            const float m = v - c;
+            float r = 0.0f, g = 0.0f, b = 0.0f;
+            if (h < 60.0f)       { r = c; g = x; }
+            else if (h < 120.0f) { r = x; g = c; }
+            else if (h < 180.0f) { g = c; b = x; }
+            else if (h < 240.0f) { g = x; b = c; }
+            else if (h < 300.0f) { r = x; b = c; }
+            else                 { r = c; b = x; }
+            const auto ch = [m](float f) -> uint32_t
+            { return static_cast<uint32_t>(std::lround((f + m) * 255.0f)) & 0xFFu; };
+            roi_color_base_.push_back((ch(r) << 16) | (ch(g) << 8) | ch(b));
+        }
+
+        // 2. Palette: semantic_map's cell_colors.list — the same file the
+        //    semantic_map visualizer uses for object-id markers.
+        roi_color_palette_.clear();
+        try
+        {
+            const std::string path =
+                ament_index_cpp::get_package_share_directory("semantic_map")
+                + "/config/cell_colors.list";
+            std::ifstream fi(path);
+            if (fi)
+            {
+                std::string line;
+                while (std::getline(fi, line))
+                {
+                    const auto b = line.find_first_not_of(" \t\r\n");
+                    if (b == std::string::npos || line[b] == '#') continue;
+                    const auto e = line.find_last_not_of(" \t\r\n");
+                    const std::string hex = line.substr(b, e - b + 1);
+                    if (hex.size() != 6) continue;
+                    roi_color_palette_.push_back(
+                        static_cast<uint32_t>(std::stoul(hex, nullptr, 16)));
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            // semantic_map not installed (standalone extractor) or unreadable
+            // palette file: HSV base colors only.
+            RCLCPP_WARN(get_logger(), "cell_colors.list unavailable (%s) — "
+                        "non-whitelist HSV fallback covers all ids", e.what());
+        }
+        RCLCPP_INFO(get_logger(),
+                    "ROI point colors: %zu-class HSV fallback + %zu palette entries "
+                    "(source: semantic_map config/cell_colors.list)",
+                    roi_color_base_.size(), roi_color_palette_.size());
+    }
+
+    void AISegMaskPointCloudROIExtractor::rebuildRoiColorOverlay()
+    {
+        auto cn = getClassNamesInfo();
+        if (!cn || roi_color_palette_.empty())
+        {
+            return;
+        }
+        auto overlay = std::make_shared<std::unordered_map<int32_t, uint32_t>>();
+        for (size_t i = 0; i < roi_class_names_.size() && i < roi_color_palette_.size(); ++i)
+        {
+            auto it = cn->find(roi_class_names_[i]);
+            if (it != cn->end())
+            {
+                (*overlay)[static_cast<int32_t>(it->second)] = roi_color_palette_[i];
+            }
+        }
+        const size_t assigned = overlay->size();
+        std::lock_guard<std::mutex> lock(roi_color_mutex_);
+        roi_color_overlay_ = std::move(overlay);
+        RCLCPP_INFO(get_logger(),
+                    "ROI point color overlay rebuilt: %zu whitelist classes use "
+                    "cell_colors.list, remaining ids use the HSV fallback",
+                    assigned);
     }
 } // namespace seg_mask_roi_extractor

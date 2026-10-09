@@ -487,6 +487,30 @@ namespace seg_mask_roi_extractor
             // Precomputed target class IDs (+1, matching the class-ID mask encoding) for
             // single-pass mask generation. Stored as an immutable shared_ptr snapshot so the
             // detection callback can read it lock-free (written once when class info arrives).
+            std::vector<std::string> roi_class_names_;      ///< ROI whitelist in config file order (palette assignment order)
+            std::vector<uint32_t> roi_color_palette_;       ///< cell_colors.list colors, file order (0xRRGGBB)
+            std::vector<uint32_t> roi_color_base_;          ///< HSV fallback per class id — same scheme as the semantic_map visualizer
+            std::shared_ptr<const std::unordered_map<int32_t, uint32_t>> roi_color_overlay_;  ///< palette entry per class id (whitelist order), immutable snapshot
+            std::mutex roi_color_mutex_;                    ///< guards roi_color_overlay_ swaps
+
+            /**
+             * @brief Load ROI point colors (called once at init).
+             *
+             * Builds the HSV fallback table (20 hue groups x 4 brightness
+             * levels over the class ids — the same scheme as the
+             * semantic_map visualizer) and reads semantic_map's
+             * config/cell_colors.list palette.
+             */
+            void loadRoiClassColors();
+
+            /**
+             * @brief Overlay the palette onto the runtime class table
+             *        (called when the class list arrives): whitelist file
+             *        order — palette line N -> N-th whitelisted class.  The
+             *        same color scheme as the semantic_map object-id markers.
+             */
+            void rebuildRoiColorOverlay();
+
             std::shared_ptr<const std::unordered_set<int>> target_class_ids_;         ///< Depth filtering class IDs
             std::shared_ptr<const std::unordered_set<int>> target_roi_class_ids_;     ///< ROI extraction class IDs
             std::shared_ptr<const std::unordered_set<int>> target_class_ids_merged_;  ///< Merged class IDs (union of depth + ROI)

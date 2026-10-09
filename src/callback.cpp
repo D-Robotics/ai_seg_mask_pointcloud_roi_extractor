@@ -347,6 +347,8 @@ namespace seg_mask_roi_extractor
         }
         // Rebuild the precomputed target class-ID set now that both dictionaries exist.
         rebuildTargetClassIdSet();
+        // Re-apply the ROI point-color palette overlay for this class table.
+        rebuildRoiColorOverlay();
         // Unsubscribe from class names info topic after receiving the first message
         class_info_sub_.reset();
         return;

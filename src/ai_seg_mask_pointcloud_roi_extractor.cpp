@@ -82,6 +82,11 @@ namespace seg_mask_roi_extractor
             return false;
         }
 
+        // ROI point colors: HSV fallback table + cell_colors.list palette.
+        // Loaded once here; the palette overlay is applied in
+        // rebuildRoiColorOverlay() when the runtime class list arrives.
+        loadRoiClassColors();
+
         if (!dynamicParaCallback())
         {
             RCLCPP_ERROR(get_logger(), "Dynamic para callback failed !");

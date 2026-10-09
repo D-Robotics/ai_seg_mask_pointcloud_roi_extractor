@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <set>
 #include <vector>
 
@@ -124,8 +125,8 @@ namespace seg_mask_roi_extractor
         // flattened into one cloud, each point carrying its class id and
         // confidence.  Field layout (contract with semantic_map, documented
         // in README):  x,y,z float32 | class_id int32 | confidence float32.
-        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; int32_t instance_id; };
-        static_assert(sizeof(RoiPoint) == 24, "unexpected padding in RoiPoint");
+        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; int32_t instance_id; uint32_t rgb; };
+        static_assert(sizeof(RoiPoint) == 28, "unexpected padding in RoiPoint");
         std::vector<RoiPoint> pts;
         std::set<int> seen_ids;
         int32_t instance_seq = 0;  // per-frame instance counter (one per emitted box)
@@ -260,9 +261,38 @@ namespace seg_mask_roi_extractor
                 if (cloud->empty()) continue;
             }
 
+            // Per-point color: whitelist palette (semantic_map
+            // cell_colors.list) first, then the visualizer's HSV fallback for
+            // the remaining class ids — the same scheme as the semantic_map
+            // object-id markers.  Neutral gray when neither covers the id.
+            std::shared_ptr<const std::unordered_map<int32_t, uint32_t>> color_overlay;
+            {
+                std::lock_guard<std::mutex> lock(roi_color_mutex_);
+                color_overlay = roi_color_overlay_;
+            }
+            uint32_t rgb01 = 0x00C8C8C8u;
+            bool have_color = false;
+            if (color_overlay)
+            {
+                auto oit = color_overlay->find(box_info.id);
+                if (oit != color_overlay->end())
+                {
+                    rgb01 = oit->second;
+                    have_color = true;
+                }
+            }
+            if (!have_color &&
+                box_info.id >= 0 &&
+                static_cast<size_t>(box_info.id) < roi_color_base_.size())
+            {
+                rgb01 = roi_color_base_[static_cast<size_t>(box_info.id)];
+                have_color = true;
+            }
+            const uint32_t packed_rgb = 0xFF000000u | rgb01;
+
             for (const auto& p : cloud->points)
             {
-                pts.push_back({p.x, p.y, p.z, class_id, confidence, instance_seq});
+                pts.push_back({p.x, p.y, p.z, class_id, confidence, instance_seq, packed_rgb});
             }
             seen_ids.insert(static_cast<int>(class_id));
             ++instance_seq;
@@ -325,6 +355,7 @@ namespace seg_mask_roi_extractor
         addField("class_id", 12, sensor_msgs::msg::PointField::INT32);
         addField("confidence", 16, sensor_msgs::msg::PointField::FLOAT32);
         addField("instance_id", 20, sensor_msgs::msg::PointField::INT32);
+        addField("rgb", 24, sensor_msgs::msg::PointField::UINT32);
         roi_msg.point_step = sizeof(RoiPoint);
         roi_msg.row_step = roi_msg.point_step * roi_msg.width;
         roi_msg.is_bigendian = false;
