@@ -125,8 +125,11 @@ namespace seg_mask_roi_extractor
         // flattened into one cloud, each point carrying its class id and
         // confidence.  Field layout (contract with semantic_map, documented
         // in README):  x,y,z float32 | class_id int32 | confidence float32.
-        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; int32_t instance_id; uint32_t rgb; };
-        static_assert(sizeof(RoiPoint) == 28, "unexpected padding in RoiPoint");
+        // Two color fields carrying the SAME packed value (0xAARRGGBB, memory
+        // byte order B,G,R,A): renderers pick their preferred name — RViz
+        // reads "rgb", foxglove's BGRA color mode reads "bgra".
+        struct RoiPoint { float x, y, z; int32_t class_id; float confidence; int32_t instance_id; uint32_t rgb; uint32_t bgra; };
+        static_assert(sizeof(RoiPoint) == 32, "unexpected padding in RoiPoint");
         std::vector<RoiPoint> pts;
         std::set<int> seen_ids;
         int32_t instance_seq = 0;  // per-frame instance counter (one per emitted box)
@@ -292,7 +295,7 @@ namespace seg_mask_roi_extractor
 
             for (const auto& p : cloud->points)
             {
-                pts.push_back({p.x, p.y, p.z, class_id, confidence, instance_seq, packed_rgb});
+                pts.push_back({p.x, p.y, p.z, class_id, confidence, instance_seq, packed_rgb, packed_rgb});
             }
             seen_ids.insert(static_cast<int>(class_id));
             ++instance_seq;
@@ -356,6 +359,7 @@ namespace seg_mask_roi_extractor
         addField("confidence", 16, sensor_msgs::msg::PointField::FLOAT32);
         addField("instance_id", 20, sensor_msgs::msg::PointField::INT32);
         addField("rgb", 24, sensor_msgs::msg::PointField::UINT32);
+        addField("bgra", 28, sensor_msgs::msg::PointField::UINT32);
         roi_msg.point_step = sizeof(RoiPoint);
         roi_msg.row_step = roi_msg.point_step * roi_msg.width;
         roi_msg.is_bigendian = false;
