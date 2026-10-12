@@ -14,7 +14,7 @@ AI Segmentation Mask PointCloud ROI Extractor是一个基于ROS2 Humble的功能
 - 订阅深度图和AI检测信息，确保时间戳精确对齐
 - 根据检测类别和置信度阈值从点云中提取或过滤ROI
 - 深度过滤链路（过滤点云、深度图、掩码）：始终开启，输出供避障导航使用
-- ROI点云链路（标准 PointCloud2，逐点携带 class_id / confidence / instance_id / rgb+bgra 调色板色；ROI分割叠加图）：受 enable_roi_extraction 门控，bring_up 按 run_semantic_map 下发——只有开启语义建图后才会运行（semantic_map 订阅 roi_cloud_topic）
+- ROI点云链路（标准 PointCloud2，逐点携带 class_id / confidence / instance_id / rgb+bgra 调色板色；ROI分割叠加图）：受 enable_roi_extraction 门控（叠加图另受 enable_roi_visual 门控），bring_up 按 run_semantic_map 下发——只有开启语义建图后才会运行（semantic_map 订阅 roi_cloud_topic）
 - 常驻线程池并行处理帧（worker_threads），队列超限丢弃最旧帧（max_pending_frames）以约束延迟
 - 支持动态参数调整
 - 提供丰富的日志和调试信息
@@ -166,6 +166,7 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | instance_depth_gate_tau | double | 0.3 | 实例级自适应百分位深度门控最小边距（0=禁用） | 米 |
 | use_extractor | bool | false | 是否进行感兴趣区域提取；true:=提取，false:=过滤 | - |
 | enable_roi_extraction | bool | true | ROI/语义建图链路总开关；false=跳过 ROI 提取与渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路。bring_up 按 run_semantic_map 下发 | - |
+| enable_roi_visual | bool | false | ROI 叠加渲染开关；false=不投递叠加渲染任务（每帧省约 75ms 工作线程耗时，web 通道 2 无叠加图）。bring_up 恒传 true | - |
 | worker_threads | int | 2 | 常驻工作线程数（上限 3，避免与 BPU 抢核） | - |
 | max_pending_frames | int | 4 | 线程池待处理帧上限，超出丢弃最旧帧（需 ≥ 单帧任务数 3） | - |
 
@@ -240,7 +241,7 @@ ros2 param set /seg_mask debug true
 - 发布过滤后的深度图
 - 发布过滤后的掩码图像
 - 发布过滤后的点云
-- 发布ROI点云（标准 PointCloud2）与ROI分割叠加渲染图（roi_visual_topic 非空时）
+- 发布ROI点云（标准 PointCloud2）；发布ROI分割叠加渲染图（enable_roi_visual=true 且 roi_visual_topic 非空时）
 
 ## 9. 注意事项
 

@@ -12,7 +12,7 @@ The package implements the following core features:
 - Subscribes to depth images and AI detection information with precise timestamp synchronization
 - Extracts or filters ROI from point clouds based on detection categories and confidence thresholds
 - Depth-filter chain (filtered point cloud, depth image, mask): always on, output feeds obstacle avoidance / navigation
-- ROI pointcloud chain (standard PointCloud2 with per-point class_id / confidence / instance_id / rgb+bgra palette colors; ROI overlay image): gated by enable_roi_extraction (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
+- ROI pointcloud chain (standard PointCloud2 with per-point class_id / confidence / instance_id / rgb+bgra palette colors; ROI overlay image): gated by enable_roi_extraction (the overlay additionally by enable_roi_visual) (bring_up derives it from run_semantic_map) — runs only once semantic mapping is enabled (semantic_map subscribes to roi_cloud_topic)
 - Persistent thread pool for parallel frame processing (worker_threads); oldest frame dropped when the queue exceeds max_pending_frames to bound latency
 - Supports dynamic parameter adjustment
 - Provides comprehensive logging and debugging information
@@ -163,6 +163,7 @@ The parsing stage merges both class configs into a common threshold map (lower c
 | instance_depth_gate_tau | double | 0.3 | Instance-level adaptive percentile depth gate minimum margin (0=disabled) | meters |
 | use_extractor | bool | false | Whether to perform ROI extraction; true:=extraction, false:=filtering | - |
 | enable_roi_extraction | bool | true | Master switch for the ROI/semantic-map chain; false=skip ROI extraction and render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain. bring_up derives it from run_semantic_map | - |
+| enable_roi_visual | bool | false | Overlay-render switch; false=skip the overlay-render task (~75 ms worker time per frame saved, no overlay on web channel 2). bring_up always passes true | - |
 | worker_threads | int | 2 | Persistent worker threads (max 3 to avoid starving BPU cores) | - |
 | max_pending_frames | int | 4 | Thread-pool pending frame cap; oldest frame dropped when exceeded (must be >= 3 tasks per frame) | - |
 
@@ -238,7 +239,7 @@ ros2 param set /seg_mask debug true
 - Publish filtered depth images
 - Publish filtered mask images
 - Publish filtered point clouds
-- Publish the ROI pointcloud (standard PointCloud2) and the ROI overlay render (when roi_visual_topic is non-empty)
+- Publish the ROI pointcloud (standard PointCloud2); publish the ROI overlay render (when enable_roi_visual=true and roi_visual_topic is non-empty)
 
 ## 9. Notes
 
