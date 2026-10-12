@@ -168,7 +168,7 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | enable_roi_extraction | bool | true | ROI/语义建图链路总开关；false=跳过 ROI 提取与渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路。bring_up 按 run_semantic_map 下发 | - |
 | enable_roi_visual | bool | false | ROI 叠加渲染开关；false=不投递叠加渲染任务（每帧省约 75ms 工作线程耗时，web 通道 2 无叠加图）。bring_up 恒传 true | - |
 | worker_threads | int | 2 | 常驻工作线程数（上限 3，避免与 BPU 抢核） | - |
-| max_pending_frames | int | 4 | 线程池待处理帧上限，超出丢弃最旧帧（需 ≥ 单帧任务数 3） | - |
+| max_pending_frames | int | 4 | 线程池待处理帧上限，超出丢弃最旧帧（需 ≥ 单帧分支数 2） | - |
 
 ### 6.4 动态参数
 
@@ -233,7 +233,7 @@ ros2 param set /seg_mask debug true
 - 对掩码进行膨胀处理
 - 根据掩码过滤深度图
 - 将深度图转换为点云
-- 常驻线程池逐帧并行执行三路任务（深度过滤、ROI点云提取、ROI叠加渲染），队列超限丢弃最旧帧
+- 常驻线程池并行执行两条分支（深度过滤 ‖ 语义支路：掩码腐蚀条件化 → ROI点云提取 → 叠加渲染），队列超限丢弃最旧帧
 - ROI链路：按类附加腐蚀与实例级自适应百分位深度门控去除边界伪影与径向拖尾噪声
 - 零拷贝共享深度消息缓冲、MatPool 复用大图缓冲、掩码单遍生成
 

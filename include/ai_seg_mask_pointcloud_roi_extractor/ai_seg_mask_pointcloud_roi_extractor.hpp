@@ -374,14 +374,26 @@ namespace seg_mask_roi_extractor
              * @param mask_img Output pooled cv::Mat for the binary intersection mask
              * @param filtered_all_box_info Output vector of filtered box infos (name, id, conf, rect)
              * @param seg_mask_class_id Output pooled PRISTINE full-resolution class-ID mask (CV_8UC1, pixel = class_id + 1, 0 = background); consumed by the depth-filter class-restrict (upstream-identical, no erosion)
-             * @param seg_mask_class_id_roi Output pooled ERODED class-ID mask for the ROI/semantic-map chain only (trim + erode_iter_num_roi + erode_extra + 21x21 global)
              * @return True if parsing is successful, false otherwise
              */
             bool parserDetectInfo(const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
                             cv::Mat &mask_img,
                             std::vector<BoxInfo>& filtered_all_box_info,
-                            cv::Mat& seg_mask_class_id,
-                            cv::Mat& seg_mask_class_id_roi);
+                            cv::Mat& seg_mask_class_id);
+
+            /**
+             * @brief Condition the ROI-dedicated class-ID mask on a worker
+             *        thread (semantic branch step 1).
+             *
+             * Builds job->seg_mask_class_id_roi from the pristine
+             * job->seg_mask_class_id: trim to detected instance pixels, then
+             * erode_iter_num_roi (3x3), per-class extra erosion (chair), and
+             * the global 21x21 pass.  Runs OFF the callback/filter path so
+             * the depth-filter latency carries no ROI cost.
+             *
+             * @param job Frame holding the pristine mask, mask_img and pool.
+             */
+            void conditionRoiMask(const std::shared_ptr<FrameJob>& job);
 
             /**
              * @brief Camera info callback function

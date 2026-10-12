@@ -165,7 +165,7 @@ The parsing stage merges both class configs into a common threshold map (lower c
 | enable_roi_extraction | bool | true | Master switch for the ROI/semantic-map chain; false=skip ROI extraction and render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain. bring_up derives it from run_semantic_map | - |
 | enable_roi_visual | bool | false | Overlay-render switch; false=skip the overlay-render task (~75 ms worker time per frame saved, no overlay on web channel 2). bring_up always passes true | - |
 | worker_threads | int | 2 | Persistent worker threads (max 3 to avoid starving BPU cores) | - |
-| max_pending_frames | int | 4 | Thread-pool pending frame cap; oldest frame dropped when exceeded (must be >= 3 tasks per frame) | - |
+| max_pending_frames | int | 4 | Thread-pool pending frame cap; oldest frame dropped when exceeded (must be >= 2 branches per frame) | - |
 
 ### 6.4 Dynamic Parameters
 
@@ -231,7 +231,7 @@ ros2 param set /seg_mask debug true
 - Perform dilation processing on masks
 - Filter depth images based on masks
 - Convert depth images to point clouds
-- A persistent thread pool runs three tasks per frame in parallel (depth filtering, ROI pointcloud extraction, ROI overlay rendering); oldest frames are dropped when the queue overflows
+- A persistent thread pool runs two branches per frame in parallel (depth filtering ‖ semantic branch: mask conditioning (erosions) -> ROI pointcloud extraction -> overlay render); oldest frames are dropped when the queue overflows
 - ROI chain: per-class extra erosion and the instance-level adaptive percentile depth gate remove boundary artifacts and radial tail streaks
 - Zero-copy sharing of the depth message buffer, MatPool reuse of large image buffers, single-pass mask generation
 

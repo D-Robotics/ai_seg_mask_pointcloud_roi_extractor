@@ -95,27 +95,14 @@ namespace seg_mask_roi_extractor
         //    mask_img / seg_mask_class_id are borrowed from the reusable Mat pool.
         cv::Mat mask_img;
         cv::Mat seg_mask_class_id;
-        cv::Mat seg_mask_class_id_roi;
         std::vector<BoxInfo> filtered_all_box_info;
         if (!parserDetectInfo(detect_info_msg,
                             mask_img,
                             filtered_all_box_info,
-                            seg_mask_class_id,
-                            seg_mask_class_id_roi))
+                            seg_mask_class_id))
         {
             RCLCPP_ERROR(get_logger(), "Detect info parsing failed!");
             return;
-        }
-
-        // 2.5 Erode the ROI class-ID mask to shrink object boundaries inward.
-        //     A 21x21 elliptical kernel removes ~10 px of edge artifacts in a
-        //     single pass.  ROI/semantic-map chain ONLY — the depth-filter
-        //     chain consumes the pristine seg_mask_class_id (upstream keeps
-        //     this chain erosion-free).
-        if (!seg_mask_class_id_roi.empty())
-        {
-            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(21, 21));
-            cv::erode(seg_mask_class_id_roi, seg_mask_class_id_roi, kernel, cv::Point(-1, -1), 1);
         }
 
         // ==================== Dispatch to thread pool (non-blocking) ====================
@@ -127,7 +114,6 @@ namespace seg_mask_roi_extractor
         job->depth_cv = depth_cv;
         job->mask_img = std::move(mask_img);
         job->seg_mask_class_id = std::move(seg_mask_class_id);
-        job->seg_mask_class_id_roi = std::move(seg_mask_class_id_roi);
         job->boxes = std::move(filtered_all_box_info);
         job->frame_id = frame_id;
         job->timestamp = time_stamp;
@@ -208,32 +194,34 @@ namespace seg_mask_roi_extractor
         };
 
         // Task 2: per-ROI point cloud extraction with conf and id (read-only depth)
-        auto task_roi = [this, job, rcp]()
+        // Task 2 (semantic branch): condition the ROI mask (trim + erosions)
+        // on this worker — the callback and the depth-filter path carry no ROI
+        // cost — then extract the ROI point cloud and, when enabled, render
+        // the overlay.  Both stages read the same conditioned mask so the
+        // overlay matches the semantic info written to the map 1:1.
+        auto task_semantic = [this, job, rcp, rvp]()
         {
             ScopedTimer t(timing_roi_.acc_us, timing_roi_.count,
                           job->cfg.debug && job->cfg.time_debug);
+            this->conditionRoiMask(job);
             this->processROIPointClouds(job->depth_cv->image, job->seg_mask_class_id_roi,
                                         job->boxes, job->timestamp, job->frame_id, rcp,
                                         job->cfg.cam_w, job->cfg.cam_h,
                                         job->cfg.min_depth, job->cfg.max_depth,
                                         target_names_roi_confidence_);
+            if (params_->enable_roi_visual && rvp)
+            {
+                this->processROIVisual(job->depth_cv->image, job->seg_mask_class_id_roi,
+                                       job->boxes, job->timestamp, job->frame_id, rvp,
+                                       job->cfg.cam_w, job->cfg.cam_h,
+                                       job->cfg.min_depth, job->cfg.max_depth,
+                                       target_names_roi_confidence_);
+            }
         };
 
-        // Task 3: ROI visual overlay render (bgr8 depth + segment). Only when a
-        // publisher is configured. Uses the same ROI filtering as task_roi so the
-        // overlay matches the semantic info written to the map.
-        auto task_visual = [this, job, rvp]()
-        {
-            if (!rvp) return;
-            this->processROIVisual(job->depth_cv->image, job->seg_mask_class_id_roi,
-                                   job->boxes, job->timestamp, job->frame_id, rvp,
-                                   job->cfg.cam_w, job->cfg.cam_h,
-                                   job->cfg.min_depth, job->cfg.max_depth,
-                                   target_names_roi_confidence_);
-        };
-
-        // ROI/semantic-map chain gate: when disabled, only the depth-filter task is
-        // enqueued and the ROI-extraction / overlay-render worker time is saved.
+        // ROI/semantic-map branch gate: when disabled, only the depth-filter
+        // task is enqueued and all ROI worker time (conditioning + extraction
+        // + render) is saved.
         const bool roi_enabled = params_->enable_roi_extraction;
         if (thread_pool_)
         {
@@ -242,11 +230,7 @@ namespace seg_mask_roi_extractor
             thread_pool_->enqueue(task_filter, max_pending);
             if (roi_enabled)
             {
-                thread_pool_->enqueue(task_roi, max_pending);
-                if (params_->enable_roi_visual)
-                {
-                    thread_pool_->enqueue(task_visual, max_pending);
-                }
+                thread_pool_->enqueue(task_semantic, max_pending);
             }
         }
         else
@@ -255,11 +239,7 @@ namespace seg_mask_roi_extractor
             task_filter();
             if (roi_enabled)
             {
-                task_roi();
-                if (params_->enable_roi_visual)
-                {
-                    task_visual();
-                }
+                task_semantic();
             }
         }
 
@@ -629,8 +609,7 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
     const ai_msgs::msg::PerceptionTargets::ConstSharedPtr &detect_info_msg,
     cv::Mat &mask_img,
     std::vector<BoxInfo>& filtered_all_box_info,
-    cv::Mat& seg_mask_class_id,
-    cv::Mat& seg_mask_class_id_roi)
+    cv::Mat& seg_mask_class_id)
 {
     filtered_all_box_info.clear();
     const int img_h = static_cast<int>(params_->camera_height);
@@ -675,79 +654,6 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
     {
         mask_img = mask_pool_.acquire(img_h, img_w, CV_8UC1);
         cv::bitwise_and(mask_valid, detect_valid_area_mask, mask_img);
-
-        // ── 4. ROI-mask conditioning (ROI/semantic-map chain ONLY) ──
-        // Build the ROI copy of the class-ID mask and erode its boundary to
-        // remove unreliable edge pixels before ROI point cloud extraction.
-        // mask_img and the pristine seg_mask_class_id stay untouched, so the
-        // depth-filter chain keeps the upstream behaviour (dilate only, no
-        // erosion anywhere).
-        seg_mask_class_id_roi = mask_pool_.acquire(img_h, img_w, CV_8UC1);
-        seg_mask_class_id.copyTo(seg_mask_class_id_roi);
-        const int erode_n = params_->erode_iter_num_roi;
-        if (erode_n > 0)
-        {
-            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
-
-            // Trim the ROI mask to the detected instance pixels (bbox ∩ seg mask)
-            for (int v = 0; v < img_h; ++v)
-            {
-                const uchar* mrow = mask_img.ptr<uchar>(v);
-                uchar* srow = seg_mask_class_id_roi.ptr<uchar>(v);
-                for (int u = 0; u < img_w; ++u)
-                {
-                    if (mrow[u] != 255) srow[u] = 0;
-                }
-            }
-
-            cv::erode(seg_mask_class_id_roi, seg_mask_class_id_roi, kernel,
-                      cv::Point(-1, -1), erode_n);
-        }
-
-        // ── 4b. Per-class EXTRA erosion on the ROI class-ID mask ─────
-        // Tightens only the configured classes (default: chair) to fight
-        // semantic-map blob inflation.  Operates on the ROI copy only —
-        // the depth-filter/obstacle pipeline is unaffected.
-        const int extra_n = params_->erode_extra_iter_num;
-        if (extra_n > 0 && !params_->erode_extra_class_names.empty())
-        {
-            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
-            cv::Mat sub = mask_pool_.acquire(img_h, img_w, CV_8UC1);
-            // Comma-separated list (plain string param — the descriptions-yaml
-            // launch tooling only supports bool/int/double/string types).
-            std::stringstream ss(params_->erode_extra_class_names);
-            std::string name;
-            while (std::getline(ss, name, ','))
-            {
-                const size_t b = name.find_first_not_of(" \t");
-                if (b == std::string::npos) continue;
-                name = name.substr(b, name.find_last_not_of(" \t") - b + 1);
-                auto it = class_names->find(name);
-                if (it == class_names->end())
-                {
-                    RCLCPP_WARN_ONCE(get_logger(),
-                                     "erode_extra_class_names: '%s' not in model class list, skipped",
-                                     name.c_str());
-                    continue;
-                }
-                // Pixel values in seg_mask_class_id are class-id + 1 (0 = background)
-                const uchar cid = static_cast<uchar>(it->second + 1);
-                cv::compare(seg_mask_class_id, cid, sub, cv::CMP_EQ);
-                if (cv::countNonZero(sub) == 0) continue;  // class absent this frame
-                cv::erode(sub, sub, kernel, cv::Point(-1, -1), extra_n);
-                // Drop this class's pixels that did not survive the extra erosion
-                for (int v = 0; v < img_h; ++v)
-                {
-                    const uchar* srow = sub.ptr<uchar>(v);
-                    uchar* grow = seg_mask_class_id_roi.ptr<uchar>(v);
-                    for (int u = 0; u < img_w; ++u)
-                    {
-                        if (grow[u] == cid && srow[u] == 0) grow[u] = 0;
-                    }
-                }
-            }
-            mask_pool_.release(sub);
-        }
 
         mask_pool_.release(mask_valid);
         mask_pool_.release(detect_valid_area_mask);
@@ -980,5 +886,90 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
         return true;
     }
 
+
+    void AISegMaskPointCloudROIExtractor::conditionRoiMask(const std::shared_ptr<FrameJob>& job)
+    {
+        const cv::Mat& seg = job->seg_mask_class_id;
+        if (seg.empty())
+        {
+            return;
+        }
+        cv::Mat& roi = job->seg_mask_class_id_roi;
+        roi = job->mask_pool->acquire(seg.rows, seg.cols, CV_8UC1);
+        seg.copyTo(roi);
+
+        // Trim to detected instance pixels, then erode the boundary
+        // (1 px per iteration, 3x3 elliptical).  (Moved from
+        // parserDetectInfo step 4 — now runs on the semantic branch worker.)
+        const int erode_n = params_->erode_iter_num_roi;
+        if (erode_n > 0)
+        {
+            if (!job->mask_img.empty())
+            {
+                for (int v = 0; v < roi.rows; ++v)
+                {
+                    const uchar* mrow = job->mask_img.ptr<uchar>(v);
+                    uchar* rrow = roi.ptr<uchar>(v);
+                    for (int u = 0; u < roi.cols; ++u)
+                    {
+                        if (mrow[u] != 255) rrow[u] = 0;
+                    }
+                }
+            }
+            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+            cv::erode(roi, roi, kernel, cv::Point(-1, -1), erode_n);
+        }
+
+        // Per-class EXTRA erosion (default: chair) to fight semantic-map blob
+        // inflation.  (Moved from parserDetectInfo step 4b.)
+        const int extra_n = params_->erode_extra_iter_num;
+        if (extra_n > 0 && !params_->erode_extra_class_names.empty())
+        {
+            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+            cv::Mat sub = job->mask_pool->acquire(roi.rows, roi.cols, CV_8UC1);
+            auto class_names = getClassNamesInfo();
+            // Comma-separated list (plain string param — the descriptions-yaml
+            // launch tooling only supports bool/int/double/string types).
+            std::stringstream ss(params_->erode_extra_class_names);
+            std::string name;
+            while (std::getline(ss, name, ','))
+            {
+                const size_t b = name.find_first_not_of(" \t");
+                if (b == std::string::npos) continue;
+                name = name.substr(b, name.find_last_not_of(" \t") - b + 1);
+                auto it = class_names ? class_names->find(name) : class_names->end();
+                if (!class_names || it == class_names->end())
+                {
+                    RCLCPP_WARN_ONCE(get_logger(),
+                                     "erode_extra_class_names: '%s' not in model class list, skipped",
+                                     name.c_str());
+                    continue;
+                }
+                // Pixel values in the class-ID mask are class-id + 1 (0 = background)
+                const uchar cid = static_cast<uchar>(it->second + 1);
+                cv::compare(roi, cid, sub, cv::CMP_EQ);
+                if (cv::countNonZero(sub) == 0) continue;  // class absent this frame
+                cv::erode(sub, sub, kernel, cv::Point(-1, -1), extra_n);
+                // Drop this class's pixels that did not survive the extra erosion
+                for (int v = 0; v < roi.rows; ++v)
+                {
+                    const uchar* srow = sub.ptr<uchar>(v);
+                    uchar* grow = roi.ptr<uchar>(v);
+                    for (int u = 0; u < roi.cols; ++u)
+                    {
+                        if (grow[u] == cid && srow[u] == 0) grow[u] = 0;
+                    }
+                }
+            }
+            job->mask_pool->release(sub);
+        }
+
+        // Global 21x21 pass (~10 px boundary inset).  (Moved from
+        // parserDepthMaskCallback 2.5.)
+        {
+            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(21, 21));
+            cv::erode(roi, roi, kernel, cv::Point(-1, -1), 1);
+        }
+    }
 
 } // namespace seg_mask_roi_extractor
