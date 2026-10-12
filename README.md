@@ -275,7 +275,7 @@ ros2 param set /seg_mask time_debug true
 
 `roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本。点云按类别 id 分配颜色——图中红色为 cup 类、蓝色为 bottle 类。
 
-![ROI 点云在 foxglove 三维面板中渲染：红色点云为 cup 类、蓝色点云为 bottle 类；网格为 semantic_map 语义地图](image/roi_pointcloud_foxglove.png)
+![ROI 点云在 foxglove 三维面板中渲染：红色点云为 cup 类、蓝色点云为 bottle 类](image/roi_pointcloud_foxglove.png)
 
 
 ### 11.2 检查参数

@@ -273,7 +273,7 @@ ros2 param set /seg_mask time_debug true
 
 `roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. Points are colored by class id — red is the cup class and blue is the bottle class in the image.
 
-![ROI pointcloud rendered in the foxglove 3D panel: the red cloud is the cup class and the blue cloud is the bottle class; the grid is the semantic_map label map](image/roi_pointcloud_foxglove.png)
+![ROI pointcloud rendered in the foxglove 3D panel: the red cloud is the cup class and the blue cloud is the bottle class](image/roi_pointcloud_foxglove.png)
 
 
 ### 11.2 Check Parameters
