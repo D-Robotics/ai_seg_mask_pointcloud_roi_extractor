@@ -119,8 +119,8 @@ struct AISegMaskPointCloudROIExtractorPara
     bool        enable_roi_extraction{true};          /**< Master switch for the ROI/semantic-map chain: when false, the ROI point-cloud and overlay-render tasks are not enqueued (depth-filter chain unaffected). bring_up derives it from run_semantic_map. */
     bool        enable_roi_visual{false};             /**< Overlay-render switch: when false, the ROI overlay-render task is not enqueued (~75 ms worker time per frame saved). bring_up passes true (web channel 2 depends on it). */
     int         worker_threads{3};                    /**< Persistent worker thread count (max 3) */
-    // 4 >= 3 tasks enqueued per frame (filter/roi/visual): with cap 2, drop-oldest
-    // discarded the filter task whenever both workers were busy at the enqueue
+    // 4 >= 2 branches enqueued per frame (filter/semantic): with cap 2, drop-oldest
+    // discarded the filter branch whenever both workers were busy at the enqueue
     // burst (measured on X5: filtered depth 1.2 Hz vs 3 Hz input).
     int         max_pending_frames{4};                /**< Max pending frames in processing queue */
 
