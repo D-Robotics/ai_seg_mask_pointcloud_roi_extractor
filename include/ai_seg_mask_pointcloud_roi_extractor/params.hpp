@@ -117,6 +117,7 @@ struct AISegMaskPointCloudROIExtractorPara
     std::string log_level{"info"};                    /**< Log level (debug/info/warn/error) */
     bool        use_extractor{false};                 /**< true=extract ROI, false=filter ROI */
     bool        enable_roi_extraction{true};          /**< Master switch for the ROI/semantic-map chain: when false, the ROI point-cloud and overlay-render tasks are not enqueued (depth-filter chain unaffected). bring_up derives it from run_semantic_map. */
+    bool        enable_roi_visual{false};             /**< Overlay-render switch: when false, the ROI overlay-render task is not enqueued (~75 ms worker time per frame saved). bring_up passes true (web channel 2 depends on it). */
     int         worker_threads{3};                    /**< Persistent worker thread count (max 3) */
     // 4 >= 3 tasks enqueued per frame (filter/roi/visual): with cap 2, drop-oldest
     // discarded the filter task whenever both workers were busy at the enqueue
@@ -159,6 +160,7 @@ struct AISegMaskPointCloudROIExtractorPara
         std::string log_level,
         bool use_extractor,
         bool enable_roi_extraction,
+        bool enable_roi_visual,
         int worker_threads,
         int max_pending_frames
     ) :
@@ -187,6 +189,7 @@ struct AISegMaskPointCloudROIExtractorPara
         log_level(log_level),
         use_extractor(use_extractor),
         enable_roi_extraction(enable_roi_extraction),
+        enable_roi_visual(enable_roi_visual),
         worker_threads(worker_threads),
         max_pending_frames(max_pending_frames) {}
 
@@ -224,6 +227,7 @@ struct AISegMaskPointCloudROIExtractorPara
         declare_parameter_if_not_declared(node, "log_level", rclcpp::ParameterValue("info"));
         declare_parameter_if_not_declared(node, "use_extractor", rclcpp::ParameterValue(false));
         declare_parameter_if_not_declared(node, "enable_roi_extraction", rclcpp::ParameterValue(true));
+        declare_parameter_if_not_declared(node, "enable_roi_visual", rclcpp::ParameterValue(false));
         declare_parameter_if_not_declared(node, "worker_threads", rclcpp::ParameterValue(3));
         declare_parameter_if_not_declared(node, "max_pending_frames", rclcpp::ParameterValue(4));
     }
@@ -261,6 +265,7 @@ struct AISegMaskPointCloudROIExtractorPara
         get_parameter_if_declared(node, "log_level", this->log_level);
         get_parameter_if_declared(node, "use_extractor", this->use_extractor);
         get_parameter_if_declared(node, "enable_roi_extraction", this->enable_roi_extraction);
+        get_parameter_if_declared(node, "enable_roi_visual", this->enable_roi_visual);
         get_parameter_if_declared(node, "worker_threads", this->worker_threads);
         get_parameter_if_declared(node, "max_pending_frames", this->max_pending_frames);
     }

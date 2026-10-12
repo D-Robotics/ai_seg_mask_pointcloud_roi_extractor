@@ -240,6 +240,14 @@ seg_mask:
       range: []
       unit: ""
 
+    enable_roi_visual:
+      description: "ROI 叠加渲染开关：false=不投递叠加渲染任务（每帧省约 75ms 工作线程耗时，web 通道 2 无叠加图）；true=渲染 /roi/visual_depth_seg。默认 false；bring_up 恒传 true（web 通道 2 依赖）。受总开关 enable_roi_extraction 二次约束"
+      description_en: "Overlay-render switch: false=skip the ROI overlay-render task (~75 ms worker time per frame saved; no overlay on web channel 2); true=render /roi/visual_depth_seg. Default false; bring_up always passes true (web channel 2 depends on it). Further gated by enable_roi_extraction"
+      type: "bool"
+      default_value: "false"
+      range: []
+      unit: ""
+
     enable_roi_extraction:
       description: "ROI/语义建图链路总开关：false=不投递 ROI 点云提取与叠加渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路；true=正常提取并发布 /roi/pointclouds 与 /roi/visual_depth_seg。bring_up 按 run_semantic_map 下发——只有开了语义建图 ROI 链路才会运行"
       description_en: "Master switch for the ROI/semantic-map chain: false=skip the ROI point-cloud extraction and overlay-render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain; true=extract and publish /roi/pointclouds and /roi/visual_depth_seg normally. bring_up derives it from run_semantic_map — the ROI chain only runs when semantic mapping is enabled"

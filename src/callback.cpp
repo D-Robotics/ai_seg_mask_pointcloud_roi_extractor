@@ -243,7 +243,10 @@ namespace seg_mask_roi_extractor
             if (roi_enabled)
             {
                 thread_pool_->enqueue(task_roi, max_pending);
-                thread_pool_->enqueue(task_visual, max_pending);
+                if (params_->enable_roi_visual)
+                {
+                    thread_pool_->enqueue(task_visual, max_pending);
+                }
             }
         }
         else
@@ -253,7 +256,10 @@ namespace seg_mask_roi_extractor
             if (roi_enabled)
             {
                 task_roi();
-                task_visual();
+                if (params_->enable_roi_visual)
+                {
+                    task_visual();
+                }
             }
         }
 
