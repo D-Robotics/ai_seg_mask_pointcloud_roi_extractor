@@ -296,6 +296,20 @@ ros2 param set/seg_mask debug true
 |---------|---------|---------|---------|---------|
 | RDK-X5 CPU (8核) | 1500 | Approximately-28% | Approximately-13HZ| Approximately-7ms|
 
+### 12.1 Filter-pipeline net latency measurement (A/B/C, X5, 2026-10-12)
+
+Net latency = (receive time − header stamp) of the filtered depth minus that of the raw depth; the input-side transport baseline is subtracted.
+
+| Group | n | median(ms) | mean(ms) | P95(ms) | P99(ms) | max(ms) |
+|----|---|------|------|-------|-------|-------|
+| A: async, filter ‖ semantic branch (semantic on) | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
+| B: async, filter only (semantic off) | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
+| C: upstream original (sync, filter only) | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
+
+![A/B/C filter-pipeline net latency histogram](image/latency_hist_ABC.png)
+
+C (synchronous) has the lowest median, but its P95 tail is about 2x that of A/B — synchronous processing occupies the receive path, so one slow frame delays the following ones. The asynchronous A/B pays a ~3-5 ms median premium for a significantly narrower latency spread, and toggling the semantic branch does not affect the filter-path latency (A−B median difference 1.7 ms).
+
 ## 13. License
 
 This project is open source under the Apache License 2.0.
