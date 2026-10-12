@@ -271,9 +271,9 @@ ros2 param set /seg_mask time_debug true
 
 ### 11.3 Visualize the ROI Pointcloud (foxglove / RViz)
 
-`roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. Every point carries `rgb` and `bgra` fields with the same value — the palette colors match the semantic_map/object_ids markers (semantic_map `config/cell_colors.list`, assigned by whitelist order; class ids outside the whitelist fall back to the HSV scheme): set the message's **Color Mode to BGRA** in foxglove (or flat-color rendering in RViz) to see the exact semantic-map colors; Color by field `class_id` uses the built-in colormap instead. The output is in the camera optical frame — enable /tf and /tf_static in foxglove, or set the panel's fixed frame to the message frame.
+`roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. Points are colored by class id — red is the cup class and blue is the bottle class in the image.
 
-![ROI pointcloud rendered in the foxglove 3D panel (map frame): the blue cloud is the bottle class and the red cloud is the cup class — colored per point from the cell_colors.list palette, matching the semantic_map/object_ids markers; the grid is the semantic_map label map](image/roi_pointcloud_foxglove.png)
+![ROI pointcloud rendered in the foxglove 3D panel: the red cloud is the cup class and the blue cloud is the bottle class; the grid is the semantic_map label map](image/roi_pointcloud_foxglove.png)
 
 
 ### 11.2 Check Parameters

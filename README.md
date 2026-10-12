@@ -273,9 +273,9 @@ ros2 param set /seg_mask time_debug true
 
 ### 11.3 可视化 ROI 点云（foxglove / RViz）
 
-`roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本。每个点自带 `rgb` 与 `bgra` 两个同值颜色字段——调色板颜色与 semantic_map/object_ids 标记同源（semantic_map `config/cell_colors.list` 按白名单顺序分配，白名单之外的类别 id 按 HSV 兜底规则着色）：foxglove 把该消息的 **Color Mode 设为 BGRA**、RViz 平色渲染即显示与语义地图一致的颜色；也可用 Color by field `class_id` 走内置色图。输出在相机光学坐标系下，foxglove 需勾选 /tf 与 /tf_static，或把面板固定坐标系设为该 frame。
+`roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本。点云按类别 id 分配颜色——图中红色为 cup 类、蓝色为 bottle 类。
 
-![ROI 点云在 foxglove 三维面板中渲染（map 坐标系）：蓝色点云为 bottle 类、红色点云为 cup 类——逐点 rgb 字段按 cell_colors.list 调色板着色，与 semantic_map/object_ids 同色；网格为 semantic_map 语义地图](image/roi_pointcloud_foxglove.png)
+![ROI 点云在 foxglove 三维面板中渲染：红色点云为 cup 类、蓝色点云为 bottle 类；网格为 semantic_map 语义地图](image/roi_pointcloud_foxglove.png)
 
 
 ### 11.2 检查参数
