@@ -154,15 +154,15 @@ The parsing stage merges both class configs into a common threshold map (lower c
 | camera_width | int | 640 | Camera image width, must match actual input image | pixels |
 | camera_height | int | 352 | Camera image height, must match actual input image | pixels |
 | log_level | string | "info" | Log level, available options: debug, info, warn, error, critical | - |
-| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI-extraction pipeline class-confidence threshold file path | - |
-| erode_iter_num_roi | int | 1 | Erosion iterations on the ROI-dedicated segmentation mask before ROI pointcloud extraction (0=disabled; ROI/semantic-map chain only, the depth-filter chain is unaffected) | - |
-| erode_extra_class_names | string | "chair" | Comma-separated class names receiving extra erosion (ROI/semantic-map chain only) | - |
-| erode_extra_iter_num | int | 2 | Extra erosion iterations for erode_extra_class_names (0=disabled) | - |
-| depth_continuity_check | bool | false | ROI pointcloud depth continuity check (debug switch, off by default) | - |
-| max_depth_diff | double | 0.3 | Max allowed depth difference from neighborhood median in the continuity check | meters |
-| instance_depth_gate_tau | double | 0.3 | Instance-level adaptive percentile depth gate minimum margin (0=disabled) | meters |
-| use_extractor | bool | false | Whether to perform ROI extraction; true:=extraction, false:=filtering | - |
-| enable_roi_extraction | bool | true | Master switch for the ROI/semantic-map chain; false=skip ROI extraction and render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain. bring_up derives it from run_semantic_map | - |
+| semantic_map/confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI-extraction pipeline class-confidence threshold file path | - |
+| semantic_map/erode_iter_num_roi | int | 1 | Erosion iterations on the ROI-dedicated segmentation mask before ROI pointcloud extraction (0=disabled; ROI/semantic-map chain only, the depth-filter chain is unaffected) | - |
+| semantic_map/erode_extra_class_names | string | "chair" | Comma-separated class names receiving extra erosion (ROI/semantic-map chain only) | - |
+| semantic_map/erode_extra_iter_num | int | 2 | Extra erosion iterations for erode_extra_class_names (0=disabled) | - |
+| semantic_map/depth_continuity_check | bool | false | ROI pointcloud depth continuity check (debug switch, off by default) | - |
+| semantic_map/max_depth_diff | double | 0.3 | Max allowed depth difference from neighborhood median in the continuity check | meters |
+| semantic_map/instance_depth_gate_tau | double | 0.3 | Instance-level adaptive percentile depth gate minimum margin (0=disabled) | meters |
+| use_extractor | bool | false | Upstream switch: mask morphology direction of the filter chain — false=dilate (filter mode, expand the mask to fully remove targets from the depth image), true=erode (extraction mode, shrink the mask for precise extraction). Affects the depth-filter chain only; independent of the semantic-branch switch enable_roi_extraction | - |
+| enable_roi_extraction | bool | true | Master switch for the ROI/semantic-map chain; false=skip ROI extraction and render tasks (~135 ms worker time per frame saved), keeping only the depth-filter chain. bring_up derives it from run_semantic_map. Note: independent of the upstream use_extractor — use_extractor controls the filter-chain mask morphology, this one controls whether the semantic branch is enqueued | - |
 | enable_roi_visual | bool | false | Overlay-render switch; false=skip the overlay-render task (~75 ms worker time per frame saved, no overlay on web channel 2). bring_up always passes true | - |
 | worker_threads | int | 2 | Persistent worker threads (max 3 to avoid starving BPU cores) | - |
 | max_pending_frames | int | 4 | Thread-pool pending frame cap; oldest frame dropped when exceeded (must be >= 2 branches per frame) | - |
@@ -296,17 +296,15 @@ ros2 param set/seg_mask debug true
 |---------|---------|---------|---------|---------|
 | RDK-X5 CPU (8核) | 1500 | Approximately-28% | Approximately-13HZ| Approximately-7ms|
 
-### 12.1 Filter-pipeline net latency measurement (A/B/C)
+### 12.1 Resource occupancy comparison
 
-Net latency = (receive time − header stamp) of the filtered depth minus that of the raw depth; the input-side transport baseline is subtracted.
+Filter-depth pipeline net latency across three configurations (net latency = (receive time − header stamp) of the filtered depth minus that of the raw depth; input-side transport baseline subtracted):
 
-| Group | n | median(ms) | mean(ms) | P95(ms) | P99(ms) | max(ms) |
-|----|---|------|------|-------|-------|-------|
-| A: async, filter ‖ semantic branch (semantic on) | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
-| B: async, filter only (semantic off) | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
-| C: sync, filter only | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
-
-![A/B/C filter-pipeline net latency histogram](image/latency_hist_ABC.png)
+| Group | Runs | n | median(ms) | mean(ms) | P95(ms) | P99(ms) | max(ms) |
+|----|---|---|------|------|-------|-------|-------|
+| A | depth filter + ROI pointcloud extraction + overlay render (semantic map on) | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
+| B | depth filter only (semantic map off) | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
+| C | depth filter only, synchronous per-frame processing | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
 
 C (synchronous) has the lowest median, but its P95 tail is about 2x that of A/B — synchronous processing occupies the receive path, so one slow frame delays the following ones. The asynchronous A/B pays a ~3-5 ms median premium for a significantly narrower latency spread, and toggling the semantic branch does not affect the filter-path latency (A−B median difference 1.7 ms).
 

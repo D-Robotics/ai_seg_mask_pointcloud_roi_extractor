@@ -157,15 +157,15 @@ NODE : 启动之前需要先启动双目以及yolov8-seg节点，确保深度图
 | camera_width | int | 640 | 相机图像宽度，必须与实际输入图像一致 | 像素 |
 | camera_height | int | 352 | 相机图像高度，必须与实际输入图像一致 | 像素 |
 | log_level | string | "info" | 日志级别，可选值：debug、info、warn、error、critical | - |
-| confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI 提取管线类别置信度阈值文件路径 | - |
-| erode_iter_num_roi | int | 1 | ROI 点云提取前对 ROI 专用语义掩码的腐蚀迭代次数（0=禁用；仅作用于 ROI/语义地图链路，深度过滤链路不受影响） | - |
-| erode_extra_class_names | string | "chair" | 需要附加腐蚀的类别名单（逗号分隔，仅作用于 ROI/语义地图链路） | - |
-| erode_extra_iter_num | int | 2 | erode_extra_class_names 类别的附加腐蚀迭代次数（0=禁用） | - |
-| depth_continuity_check | bool | false | ROI 点云深度连续性检查（调试开关，默认关闭） | - |
-| max_depth_diff | double | 0.3 | 深度连续性检查允许的邻域中位数最大深度差 | 米 |
-| instance_depth_gate_tau | double | 0.3 | 实例级自适应百分位深度门控最小边距（0=禁用） | 米 |
-| use_extractor | bool | false | 是否进行感兴趣区域提取；true:=提取，false:=过滤 | - |
-| enable_roi_extraction | bool | true | ROI/语义建图链路总开关；false=跳过 ROI 提取与渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路。bring_up 按 run_semantic_map 下发 | - |
+| semantic_map/confidence_threshold_roi_file_path | string | "model_classes_roi_config.yaml" | ROI 提取管线类别置信度阈值文件路径 | - |
+| semantic_map/erode_iter_num_roi | int | 1 | ROI 点云提取前对 ROI 专用语义掩码的腐蚀迭代次数（0=禁用；仅作用于 ROI/语义地图链路，深度过滤链路不受影响） | - |
+| semantic_map/erode_extra_class_names | string | "chair" | 需要附加腐蚀的类别名单（逗号分隔，仅作用于 ROI/语义地图链路） | - |
+| semantic_map/erode_extra_iter_num | int | 2 | erode_extra_class_names 类别的附加腐蚀迭代次数（0=禁用） | - |
+| semantic_map/depth_continuity_check | bool | false | ROI 点云深度连续性检查（调试开关，默认关闭） | - |
+| semantic_map/max_depth_diff | double | 0.3 | 深度连续性检查允许的邻域中位数最大深度差 | 米 |
+| semantic_map/instance_depth_gate_tau | double | 0.3 | 实例级自适应百分位深度门控最小边距（0=禁用） | 米 |
+| use_extractor | bool | false | 上游原有开关：深度过滤链路的掩码形态方向——false=膨胀（过滤模式，外扩掩码把目标完整从深度图剔除），true=腐蚀（提取模式，收缩掩码做精确提取）。只影响深度过滤链路，与语义支路开关 enable_roi_extraction 无关 | - |
+| enable_roi_extraction | bool | true | ROI/语义建图链路总开关；false=跳过 ROI 提取与渲染任务（每帧省约 135ms 工作线程耗时），仅保留深度过滤链路。bring_up 按 run_semantic_map 下发。注意与上游的 use_extractor 无关：use_extractor 控制过滤链路的掩码形态，本参数控制语义支路是否投递 | - |
 | enable_roi_visual | bool | false | ROI 叠加渲染开关；false=不投递叠加渲染任务（每帧省约 75ms 工作线程耗时，web 通道 2 无叠加图）。bring_up 恒传 true | - |
 | worker_threads | int | 2 | 常驻工作线程数（上限 3，避免与 BPU 抢核） | - |
 | max_pending_frames | int | 4 | 线程池待处理帧上限，超出丢弃最旧帧（需 ≥ 单帧分支数 2） | - |
@@ -298,17 +298,15 @@ ros2 param set /seg_mask debug true
 |---------|---------|---------|---------|---------|
 | RDK-X5 CPU (8核) | 1500 | Approximately-28% | Approximately-13HZ| Approximately-7ms|
 
-### 12.1 过滤管线净延迟实测（A/B/C）
+### 12.1 资源占用对比
 
-净延迟 = filtered 深度的（接收时刻 − 时间戳）− raw 深度的（接收时刻 − 时间戳），已剔除输入侧传输基线。
+三组配置的过滤深度图管线净延迟对比（净延迟 = filtered 深度的（接收时刻 − 时间戳）− raw 深度的（接收时刻 − 时间戳），已剔除输入侧传输基线）：
 
-| 组 | n | 中位(ms) | 均值(ms) | P95(ms) | P99(ms) | max(ms) |
-|----|---|------|------|-------|-------|-------|
-| A：异步，filter ‖ 语义支路（语义开） | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
-| B：异步，仅过滤（语义关） | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
-| C：同步，仅过滤 | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
-
-![A/B/C 过滤管线净延迟直方图](image/latency_hist_ABC.png)
+| 组 | 运行内容 | n | 中位(ms) | 均值(ms) | P95(ms) | P99(ms) | max(ms) |
+|----|---|---|------|------|-------|-------|-------|
+| A | 深度过滤 + ROI 点云提取 + 叠加渲染（语义地图开） | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
+| B | 仅深度过滤（语义地图关） | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
+| C | 仅深度过滤，同步逐帧处理 | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
 
 C（同步）中位数最低，但 P95 长尾约为 A/B 的 2 倍——同步处理占用接收路径，慢帧会连锁推迟后续帧；异步化的 A/B 以约 3~5ms 的中位数代价换取显著更窄的延迟分布，且语义支路的开关不影响过滤路延迟（A−B 中位差 1.7ms）。
 

@@ -112,7 +112,7 @@ seg_mask:
       range: []
       unit: ""
 
-    confidence_threshold_roi_file_path:
+    semantic_map/confidence_threshold_roi_file_path:
       description: "感兴趣类别的置信度文件路径"
       description_en: "File path of confidence threshold for each class for region of interest extraction"
       type: "string"
@@ -160,7 +160,7 @@ seg_mask:
       range: []
       unit: ""
 
-    erode_iter_num_roi:
+    semantic_map/erode_iter_num_roi:
       description: "ROI 点云提取前对 ROI 专用语义 mask 的腐蚀迭代次数(0=禁用)。只作用于 ROI/语义地图链路——深度过滤链路消费未腐蚀的原始 mask、与上游一致(2026-10-08 链路拆分;拆分前该 mask 与障碍链路共享,≥3 曾致 costmap 障碍闪烁、导航卡顿 BUG-20260914)。按类收紧请用 erode_extra_class_names。调大:边界深度飞刺明显、语义地图轮廓外扩时;调小:ROI 点云/语义地图物体变小残缺时"
       description_en: "Erosion iterations on the ROI-dedicated segmentation mask before ROI point cloud extraction (0=disabled). ROI/semantic-map chain ONLY — the depth-filter chain consumes the pristine mask, upstream-identical and erosion-free (chain split 2026-10-08; pre-split the mask was shared with the obstacle pipeline and >=3 caused costmap flicker/navigation jank, BUG-20260914). Use erode_extra_class_names for per-class tightening. Increase: obvious boundary depth streaks / inflated map outlines; decrease: ROI cloud / map objects shrink or break up"
       type: "int"
@@ -168,7 +168,7 @@ seg_mask:
       range: [0, 5]
       unit: ""
 
-    erode_extra_class_names:
+    semantic_map/erode_extra_class_names:
       description: "额外腐蚀类别名单(逗号分隔,如 'chair,couch'):仅对这些类别的 ROI 专用语义 mask 像素追加腐蚀(只影响 ROI 点云/语义地图,不触碰深度过滤链路)。模型类别表中不存在的类名会被跳过并告警一次。用字符串而非数组:descriptions 解析工具只支持 bool/int/double/string"
       description_en: "Comma-separated class names receiving EXTRA erosion on the ROI-dedicated segmentation mask only (affects ROI pointcloud/semantic map; depth-filter chain untouched). Class names missing from the model class list are skipped with a one-shot warning. Plain string (not array): descriptions tooling only supports bool/int/double/string"
       type: "string"
@@ -176,7 +176,7 @@ seg_mask:
       range: []
       unit: ""
 
-    erode_extra_iter_num:
+    semantic_map/erode_extra_iter_num:
       description: "额外腐蚀迭代次数(作用于 erode_extra_class_names 中的类别,0=禁用,每次迭代边界收缩约1像素)。调大(+1):该类在语义地图/ROI点云中仍比实物大、轮廓外扩或渗入背景时;调小(-1):点云/地图中该类变小残缺(如椅腿丢失)时;0=关闭该类额外腐蚀。默认 2:椅子边界总收缩量等于实测有效的全局腐蚀 3"
       description_en: "Extra erosion iterations applied to erode_extra_class_names classes (0=disabled; ~1 px boundary shrink per iteration). Increase (+1): the class still renders larger than reality in the semantic map / ROI cloud (inflated outline bleeding into background). Decrease (-1): the class shrinks or breaks up in the map (e.g. chair legs disappear). 0 disables the extra erosion. Default 2 matches the empirically tuned global erosion of 3 for chair boundary shrink"
       type: "int"
@@ -184,7 +184,7 @@ seg_mask:
       range: [0, 5]
       unit: ""
 
-    depth_continuity_check:
+    semantic_map/depth_continuity_check:
       description: "开启 ROI 点云深度连续性检查(3×3 同类邻域深度中位数,过滤孤立深度飞点)。默认关:实测对单帧整条生成的相干拖尾无效,孤立飞点已由 instance_depth_gate_tau 百分位门控覆盖,开启徒增 2~9ms/帧;保留作调试开关。只作用于 ROI/语义地图链路"
       description_en: "Enable depth continuity check (3x3 same-class neighborhood depth median) for ROI point cloud. Default OFF: field-tested ineffective against coherent single-frame tail streaks, and isolated flying pixels are already covered by the instance_depth_gate_tau percentile gate — keeping it ON only adds 2~9 ms/frame. Retained as a debug switch. ROI/semantic-map chain only"
       type: "bool"
@@ -192,7 +192,7 @@ seg_mask:
       range: []
       unit: ""
 
-    max_depth_diff:
+    semantic_map/max_depth_diff:
       description: "深度连续性检查的最大允许深度差(米)。仅 depth_continuity_check=true 时生效。调大:物体表面深度起伏大、有效点被误删时;调小:边界飞点仍残留时"
       description_en: "Maximum allowed depth difference from neighbor median for continuity check (meters). Only effective when depth_continuity_check=true. Increase: valid points wrongly removed on surfaces with large depth variation; decrease: boundary flying pixels persist"
       type: "double"
@@ -200,7 +200,7 @@ seg_mask:
       range: [0.05, 1.0]
       unit: "m"
 
-    instance_depth_gate_tau:
+    semantic_map/instance_depth_gate_tau:
       description: "实例级自适应百分位深度门控的最小边距(米,0=关闭):保留带=[p10-m, p90+m],m=max(该值, p90-p10 深度跨度)。带宽随物体自身深度跨度缩放——大物体远端边缘不误切,而'整条同时生成'的径向拖尾(背景深度整条拖出,内部自洽、局部 3x3 连续性检查看不见,实测)被整条切除。只作用于 ROI/语义地图链路。调大:点云仍出现整条径向拖尾/背景渗透时;调小或置0:目标远端边缘被截断、大物体点云残缺时"
       description_en: "Minimum margin (meters, 0=disabled) of the per-instance ADAPTIVE percentile depth gate: keep-band = [p10-m, p90+m], m = max(tau, p90-p10 span). Band scales with the object's own depth extent — large objects keep their far edges, while coherent radial tail streaks (background bleed generated in one shot, internally depth-consistent so the local 3x3 check cannot see them, user-tested) are cut entirely. ROI/semantic-map chain only. Increase: radial tail streaks / background bleed still visible in the cloud; decrease or 0: far edges of (large) objects truncated"
       type: "double"
