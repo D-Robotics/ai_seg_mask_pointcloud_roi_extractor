@@ -296,7 +296,7 @@ ros2 param set/seg_mask debug true
 |---------|---------|---------|---------|---------|
 | RDK-X5 CPU (8核) | 1500 | Approximately-28% | Approximately-13HZ| Approximately-7ms|
 
-### 12.1 Filter-pipeline net latency measurement (A/B/C, X5, 2026-10-12)
+### 12.1 Filter-pipeline net latency measurement (A/B/C)
 
 Net latency = (receive time − header stamp) of the filtered depth minus that of the raw depth; the input-side transport baseline is subtracted.
 
@@ -304,7 +304,7 @@ Net latency = (receive time − header stamp) of the filtered depth minus that o
 |----|---|------|------|-------|-------|-------|
 | A: async, filter ‖ semantic branch (semantic on) | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
 | B: async, filter only (semantic off) | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
-| C: upstream original (sync, filter only) | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
+| C: sync, filter only | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
 
 ![A/B/C filter-pipeline net latency histogram](image/latency_hist_ABC.png)
 
