@@ -1,0 +1,12 @@
+# ROI 提取管线的类别置信度阈值（类名: 阈值，低于阈值的实例不进 ROI 点云/语义地图）。
+# 类名来自分割模型（YOLO）的 80 个 COCO 类别，见 tros_nav_workflow/bring_up/params/config/coco.list。
+# semantic_map 的类别白名单以本文件为单一来源（semantic_map 启动时读取同一安装副本）。
+# 修改后需重新编译安装本包并重启节点生效。
+backpack: 0.25
+umbrella: 0.25
+suitcase: 0.25
+bottle: 0.25
+cup: 0.25
+chair: 0.25
+tv: 0.25
+vase: 0.25
