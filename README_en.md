@@ -335,21 +335,21 @@ Filter-depth pipeline net latency across three configurations (net latency = (re
 
 | Group | Runs | n | median(ms) | mean(ms) | P95(ms) | P99(ms) | max(ms) |
 |----|---|---|------|------|-------|-------|-------|
-| A | depth filter + ROI pointcloud extraction + overlay render (semantic map on) | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
-| B | depth filter only (semantic map off) | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
-| C | depth filter only, synchronous per-frame processing | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
+| A | depth filter + ROI pointcloud extraction + overlay render, run_semantic_map=True | 590 | 50.3 | 54.6 | 78.8 | 148.4 | 178.6 |
+| B | depth filter only, run_semantic_map=False | 1131 | 48.6 | 51.5 | 68.0 | 126.8 | 168.2 |
+| C | depth filter only, run_semantic_map=False, synchronous per-frame processing | 539 | 45.0 | 54.3 | 141.9 | 161.7 | 214.8 |
 
 C (synchronous) has the lowest median, but its P95 tail is about 2x that of A/B — synchronous processing occupies the receive path, so one slow frame delays the following ones. The asynchronous A/B pays a ~3-5 ms median premium for a significantly narrower latency spread, and toggling the semantic branch does not affect the filter-path latency (A−B median difference 1.7 ms).
 
-CPU occupancy (same-period sampling, last 500 frame periods each, 50 ms granularity):
+CPU occupancy — whole-machine busy% (same-period sampling, last 500 frame periods each, 50 ms granularity):
 
-| Group | Runs | n (frames) | whole-machine busy% (med/mean) | busy peak% (med/max) | tros container% (med) |
-|----|---|---|------|------|------|
-| A | depth filter + ROI pointcloud extraction + overlay render (semantic map on) | 500 | 73 / 72 | 95 / 98 | 339 |
-| B | depth filter only (semantic map off) | 500 | 70 / 68 | 96 / 98 | 300 |
-| C | depth filter only, synchronous per-frame processing | 500 | 72 / 72 | 96 / 100 | 325 |
+| Group | Runs | n | median(%) | mean(%) | P95(%) | P99(%) |
+|----|---|---|------|------|-------|-------|
+| A | depth filter + ROI pointcloud extraction + overlay render, run_semantic_map=True | 500 | 73 | 72.1 | 76 | 76 |
+| B | depth filter only, run_semantic_map=False | 500 | 70 | 67.8 | 74 | 75 |
+| C | depth filter only, run_semantic_map=False, synchronous per-frame processing | 500 | 72 | 71.7 | 74 | 74 |
 
-All three configurations hold steady: the semantic branch costs ~0.4 core (tros-container share A−B = 39%, single-core basis), about 5% of the 8-core machine — negligible for overall occupancy.
+All three configurations hold steady (medians 70–73%): enabling the semantic branch (A vs B) adds ~4 percentage points to the whole-machine mean (~0.35 core) with no P95/P99 degradation; C (synchronous) shows a similar occupancy distribution — its cost is the latency tail (table above), not average occupancy.
 
 ## 13. License
 
