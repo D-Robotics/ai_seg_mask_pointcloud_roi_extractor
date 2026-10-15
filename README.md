@@ -272,14 +272,47 @@ ros2 param set /seg_mask log_level debug
 ros2 param set /seg_mask time_debug true
 ```
 
-### 11.3 可视化 ROI 点云（foxglove / RViz）
+### 11.2 可视化（foxglove / RViz）
+
+#### ROI 点云
 
 `roi_cloud_topic` 输出标准 `sensor_msgs/msg/PointCloud2`，foxglove 3D 面板 / RViz 可直接订阅渲染，无需任何转换脚本。点云按类别 id 分配颜色——图中红色为 cup 类、蓝色为 bottle 类。
 
 ![ROI 点云在 foxglove 三维面板中渲染：红色点云为 cup 类、蓝色点云为 bottle 类](image/roi_pointcloud_foxglove.png)
 
 
-### 11.2 检查参数
+#### 深度过滤链
+
+深度过滤链路的四个可视化输出（同一帧对齐）。点云话题默认关闭，需先打开调试模式（动态参数，立即生效，无需重启）：
+
+```bash
+ros2 param set /seg_mask debug true
+```
+
+| 话题 | 内容 |
+|------|------|
+| `/image_jpeg` | 相机原图（检测/分割的输入视角，web 通道 1） |
+| `/filtered_depth_mask` | 深度可用性掩膜：白=保留，黑=被语义掩膜滤除的目标与无效区 |
+| `/StereoNetNode/stereonet_depth_filtered` | 过滤后深度图：目标区域已置零，回灌 rtabmap / obstacle_depth_fusion |
+| `/filtered_depth_cloud`（debug） | 过滤深度反投影点云，foxglove 3D 面板订阅渲染 |
+
+原图（`/image_jpeg`）：
+
+![相机原图：/image_jpeg](image/image_jpeg_input.png)
+
+mask 图（`/filtered_depth_mask`，白=保留、黑=滤除，人形轮廓清晰可辨）：
+
+![深度可用性掩膜：/filtered_depth_mask](image/filtered_depth_mask.png)
+
+过滤后深度图（`/StereoNetNode/stereonet_depth_filtered`，中间人形目标区域已置零）：
+
+![过滤后深度图：/StereoNetNode/stereonet_depth_filtered](image/filtered_depth_stereonet.png)
+
+点云（`/filtered_depth_cloud`）：foxglove 中以 map 为 display frame 渲染，与 rtabmap `/map` 占据栅格同框对齐，彩虹色按高度渐变（蓝=近地、红=最高）。原始话题为全分辨率，带宽受限的远程查看场景可在板内体素降采样后再订阅。
+
+![过滤深度点云在 foxglove 三维面板中渲染：map 坐标系，与 /map 占据栅格同框](image/filtered_depth_cloud_foxglove.jpeg)
+
+### 11.3 检查参数
 
 ```bash
 # 查看所有参数

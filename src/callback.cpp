@@ -737,13 +737,13 @@ bool AISegMaskPointCloudROIExtractor::parserDetectInfo(
                     float x = (static_cast<float>(u) - cx) * depth_value * inv_fx;
                     float y = (static_cast<float>(v) - cy) * depth_value * inv_fy;
                     pcl::PointXYZ point;
-                    // point.z = depth_value;
-                    // point.y = y;
-                    // point.x = x;
-
-                    point.x = depth_value;
-                    point.y = -x;
-                    point.z = -y;
+                    // Optical-frame convention (x right, y down, z = depth): must
+                    // match the camera_optical_frame header and the ROI cloud path.
+                    // Upstream swapped these to body axes (x=depth, y=-x, z=-y)
+                    // without changing frame_id, so TF rendered the cloud ~90° tipped.
+                    point.x = x;
+                    point.y = y;
+                    point.z = depth_value;
 
                     cloud->push_back(point);
                 }

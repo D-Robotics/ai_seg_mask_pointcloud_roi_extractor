@@ -270,14 +270,47 @@ ros2 param set /seg_mask log_level debug
 ros2 param set /seg_mask time_debug true
 ```
 
-### 11.3 Visualize the ROI Pointcloud (foxglove / RViz)
+### 11.2 Visualization (foxglove / RViz)
+
+#### ROI Pointcloud
 
 `roi_cloud_topic` publishes a standard `sensor_msgs/msg/PointCloud2` that foxglove 3D panels and RViz render natively — no conversion script needed. Points are colored by class id — red is the cup class and blue is the bottle class in the image.
 
 ![ROI pointcloud rendered in the foxglove 3D panel: the red cloud is the cup class and the blue cloud is the bottle class](image/roi_pointcloud_foxglove.png)
 
 
-### 11.2 Check Parameters
+#### Depth Filter Chain
+
+Four visualization outputs of the depth filter chain (from the same frame). The point cloud topic is disabled by default — enable debug mode first (dynamic parameter, takes effect immediately, no restart needed):
+
+```bash
+ros2 param set /seg_mask debug true
+```
+
+| Topic | Content |
+|------|------|
+| `/image_jpeg` | Raw camera image (input view for detection/segmentation, web channel 1) |
+| `/filtered_depth_mask` | Depth validity mask: white = kept, black = targets removed by the semantic mask plus invalid regions |
+| `/StereoNetNode/stereonet_depth_filtered` | Filtered depth image: target regions zeroed, fed back to rtabmap / obstacle_depth_fusion |
+| `/filtered_depth_cloud` (debug) | Back-projected point cloud of the filtered depth, rendered in the foxglove 3D panel |
+
+Raw image (`/image_jpeg`):
+
+![Raw camera image: /image_jpeg](image/image_jpeg_input.png)
+
+Mask image (`/filtered_depth_mask`, white = kept, black = filtered; the person silhouette is clearly visible):
+
+![Depth validity mask: /filtered_depth_mask](image/filtered_depth_mask.png)
+
+Filtered depth image (`/StereoNetNode/stereonet_depth_filtered`, the person region in the middle is zeroed):
+
+![Filtered depth image: /StereoNetNode/stereonet_depth_filtered](image/filtered_depth_stereonet.png)
+
+Point cloud (`/filtered_depth_cloud`): rendered in foxglove with map as the display frame, aligned in the same frame as the rtabmap `/map` occupancy grid, with a rainbow color gradient by height (blue = near ground, red = highest). The raw topic is full resolution; for bandwidth-limited remote viewing, voxelize/downsample on the board before subscribing.
+
+![Filtered depth point cloud rendered in the foxglove 3D panel: map frame, aligned with the /map occupancy grid](image/filtered_depth_cloud_foxglove.jpeg)
+
+### 11.3 Check Parameters
 
 ```bash
 # View all parameters
@@ -287,7 +320,7 @@ ros2 param list /seg_mask
 ros2 param get /seg_mask debug
 
 # Set parameter values
-ros2 param set/seg_mask debug true
+ros2 param set /seg_mask debug true
 ```
 
 ## 12. Resource Occupancy
